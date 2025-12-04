@@ -5,7 +5,7 @@
   "main": "server.ts",
 "scripts": {
   "dev": "nodemon --watch ./src --exec tsx ./src/server.ts",
-  "start": "tsx ./src/server.ts"
+  "start": "tsx src/server.ts"
 }
 ,
   "keywords": [],
