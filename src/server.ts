@@ -4,11 +4,8 @@ import connectDB from "./config/db";
 import financeRoutes from "./routes/dashboardRoutes";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
-import { insertDummyData } from "./routes/dashboardRoutes";
 dotenv.config();
-
-// this is a global limiter, that means that every single route in the API will be rate-limited.
-
+const PORT = process.env.PORT || 4000;
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 100, // 100 requests per minute per IP
@@ -20,10 +17,9 @@ app.use(cors());
 app.use(express.json());
 
 connectDB();
-//insertDummyData();
 // ! app.use not app.get here
 app.use("/api", financeRoutes);
 
-app.listen(4000, () => {
-  console.log("Server is listening on port 4000");
+app.listen(PORT, () => {
+  console.log("Server is listening...");
 });

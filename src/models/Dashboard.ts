@@ -122,52 +122,6 @@ export type TransactionCSV = {
   amount: string;
 };
 
-// for the edit overview
-// // PUT /api/dashboard/overview
-// router.put("/dashboard/overview", async (req, res) => {
-//   const { totalBalance, monthlyChange, savings, checkings } = req.body;
-
-//   // Basic validation
-//   if (totalBalance == null || isNaN(totalBalance) || totalBalance < 0) {
-//     return res.status(400).json({ message: "Invalid totalBalance" });
-//   }
-//   if (monthlyChange == null || isNaN(monthlyChange)) {
-//     return res.status(400).json({ message: "Invalid monthlyChange" });
-//   }
-//   if (savings != null && (isNaN(savings) || savings < 0)) {
-//     return res.status(400).json({ message: "Invalid savings" });
-//   }
-//   if (checkings != null && (isNaN(checkings) || checkings < 0)) {
-//     return res.status(400).json({ message: "Invalid checkings" });
-//   }
-
-//   try {
-//     // Get the single dashboard object
-//     const dashboard = await Dashboard.findOne();
-//     if (!dashboard) {
-//       return res.status(404).json({ message: "Dashboard not found" });
-//     }
-
-//     // Update the overview
-//     dashboard.overview = {
-//       totalBalance,
-//       monthlyChange,
-//       savings,
-//       checkings,
-//     };
-
-//     await dashboard.save();
-
-//     res.status(200).json({
-//       message: "Overview updated successfully",
-//       overview: dashboard.overview,
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: "Server error" });
-//   }
-// });
-
 // don't allow duplicate charges
 DashboardSchema.path("upcomingCharges").validate(function (charges: any[]) {
   const seen = new Set();
