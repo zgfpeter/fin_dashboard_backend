@@ -21,5 +21,5 @@ connectDB();
 app.use("/api", financeRoutes);
 
 app.listen(PORT, () => {
-  console.log("Server is listening...");
+  console.log("Server is listening...", PORT);
 });

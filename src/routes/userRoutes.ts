@@ -23,3 +23,5 @@ router.post("/users/login", loginLimiter, userLogin);
 //  handle user sign up
 // login limiter limits login requests
 router.post("/users/signup", loginLimiter, userSignUp);
+
+export default router;

@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import User from "../models/User";
 import bcrypt from "bcrypt";
 export const userSignUp = async (req: Request, res: Response) => {
+  console.log("Signup request received:", req.body);
   const { email, username, password } = req.body;
 
   if (!email || !username || !password) {
@@ -22,19 +23,6 @@ export const userSignUp = async (req: Request, res: Response) => {
     const newUser = new User({ email, username, password });
     await newUser.save();
     // i let mongoose pre("save") hook hash the password
-    // // Hash the password
-    // // !DONT STORE PLAIN TEXT PASSWORDS
-    // const saltRounds = 10;
-    // const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    // // Create new user
-    // const newUser = new User({
-    //   email,
-    //   username,
-    //   password: hashedPassword,
-    // });
-
-    // await newUser.save();
 
     res.status(201).json({
       message: "User created successfully",
