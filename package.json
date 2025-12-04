@@ -2,7 +2,7 @@
   "name": "finance-dashboard-backend",
   "version": "1.0.0",
   "description": "",
-  "main": "server.ts",
+  "main": "dist/server.ts",
   "scripts": {
     "dev": "nodemon --watch ./src --exec tsx ./src/server.ts",
     "build": "tsc",
