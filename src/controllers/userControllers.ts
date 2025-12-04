@@ -60,15 +60,6 @@ export const userLogin = async (req: Request, res: Response) => {
 
     // Return user info
     // !DON"T SEND PASSWORD HERE
-    res.status(200).json({
-      message: "Login successful",
-      user: {
-        id: user._id,
-        email: user.email,
-        username: user.username,
-      },
-    });
-
     // no return needed because sending a response already ends the request
     // express doesn't require return for the last response
     res.status(200).json({
