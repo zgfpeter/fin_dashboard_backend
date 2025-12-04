@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import connectDB from "./config/db";
 import financeRoutes from "./routes/dashboardRoutes";
+import userRoutes from "./routes/userRoutes";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 dotenv.config();
@@ -19,6 +20,7 @@ app.use(express.json());
 connectDB();
 // ! app.use not app.get here
 app.use("/api", financeRoutes);
+app.use("/api", userRoutes);
 
 app.listen(PORT, () => {
   console.log("Server is listening...", PORT);
