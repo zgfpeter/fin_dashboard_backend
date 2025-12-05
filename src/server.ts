@@ -18,7 +18,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:3000",
-      "finance-dashboard-gules-omega.vercel.app",
+      "https://finance-dashboard-2t31vuh1k-zgfpeters-projects.vercel.app",
     ],
     credentials: true,
   })
