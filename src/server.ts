@@ -16,10 +16,24 @@ const app = express();
 app.use(globalLimiter);
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "https://finance-dashboard-2t31vuh1k-zgfpeters-projects.vercel.app",
-    ],
+    origin: function (origin, callback) {
+      const allowedOrigins = [
+        "http://localhost:3000",
+        "https://finance-dashboard-gules-omega.vercel.app", // your production domain
+      ];
+
+      const vercelPreviewRegex = /^https:\/\/.*\.vercel\.app$/;
+
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        vercelPreviewRegex.test(origin)
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS blocked: " + origin));
+      }
+    },
     credentials: true,
   })
 );
