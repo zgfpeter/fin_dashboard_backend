@@ -7,6 +7,8 @@ export type ExpenseCategory =
   | "Tax"
   | "Other";
 export interface IDashboard extends Document {
+  // user id, each user will have their own data
+  userId: mongoose.Types.ObjectId;
   overview: {
     totalBalance: number;
     monthlyChange: number;
@@ -50,6 +52,13 @@ export interface IDashboard extends Document {
 // this is how the data will look like in the database
 const DashboardSchema = new Schema<IDashboard>(
   {
+    // user id, each user will have their own data
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      unique: true,
+    },
     overview: {
       totalBalance: Number,
       monthlyChange: Number,
@@ -134,6 +143,7 @@ DashboardSchema.path("upcomingCharges").validate(function (charges: any[]) {
   return true;
 }, "Duplicate upcoming charges are not allowed.");
 
+// the model Dashboard is what i use to query the database
 export default mongoose.model<IDashboard>(
   "Dashboard",
   DashboardSchema,

@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import User from "../models/User";
-import bcrypt from "bcrypt";
+import Dashboard from "../models/Dashboard";
+import jwt from "jsonwebtoken";
 export const userSignUp = async (req: Request, res: Response) => {
   console.log("Signup request received:", req.body);
   const { email, username, password } = req.body;
@@ -23,6 +24,19 @@ export const userSignUp = async (req: Request, res: Response) => {
     const newUser = new User({ email, username, password });
     await newUser.save();
     // i let mongoose pre("save") hook hash the password
+
+    // new user, create an empty dashboard
+    // inside userSignUp after user.save()
+    // needs to match the mongoose schema
+    await Dashboard.create({
+      userId: newUser._id,
+      overview: { totalBalance: 0, monthlyChange: 0 },
+      transactions: [],
+      upcomingCharges: [],
+      debts: [],
+      goals: [],
+      income: [],
+    });
 
     res.status(201).json({
       message: "User created successfully",
@@ -58,12 +72,24 @@ export const userLogin = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid email or password" });
     }
 
+    // generate jwt
+    // sign the token with the user's id and email
+    const token = jwt.sign(
+      {
+        id: user._id,
+        email: user.email,
+      },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "7d" } //  expires in 7 days
+    );
+
     // Return user info
     // !DON"T SEND PASSWORD HERE
     // no return needed because sending a response already ends the request
     // express doesn't require return for the last response
     res.status(200).json({
       message: "Login successful",
+      token: token, // send the jwt token
       user: {
         id: user._id,
         email: user.email,

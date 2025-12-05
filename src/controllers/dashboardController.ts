@@ -1,15 +1,31 @@
 // get the whole single data object ( in my database i have one object with all the data )
 import type { Request, Response } from "express";
 import Dashboard from "../models/Dashboard";
+import { AuthRequest } from "../middleware/authMiddleware";
+// Helper function to safely get User ID
+const getUserId = (req: AuthRequest) => {
+  return req.user?.id || req.user?._id;
+};
 export const getDashboard = async (req: Request, res: Response) => {
   try {
-    const dashboard = await Dashboard.findOne();
-    if (!dashboard) {
-      return res.status(404).json({ message: "Not found." });
+    // find the logged-in user's id. ( middleware sets req.user)
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid User Token" });
     }
 
-    res.send(dashboard);
+    // get the dashboard for this specific user
+    const dashboard = await Dashboard.findOne({ userId });
+
+    if (!dashboard) {
+      console.log("Dashboard not found for user:", userId);
+      return res.status(404).json({ message: "Dashboard not found" });
+    }
+
+    res.status(200).json(dashboard);
   } catch (error) {
+    console.log("Dashboard error: ", error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -18,8 +34,9 @@ export const getDashboard = async (req: Request, res: Response) => {
 export const getTransactions = async (req: Request, res: Response) => {
   try {
     // the second argument "upcomingCharges" tells Mongoos to only return the transactions field
-
-    const dashboard = await Dashboard.findOne({}, "transactions");
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const dashboard = await Dashboard.findOne({ userId }, "transactions");
 
     if (!dashboard) return res.status(404).json({ message: "Not found" });
     res.json(dashboard.transactions);
@@ -31,7 +48,9 @@ export const getTransactions = async (req: Request, res: Response) => {
 // get upcoming Charges
 export const getUpcomingCharges = async (req: Request, res: Response) => {
   try {
-    const dashboard = await Dashboard.findOne({}, "upcomingCharges");
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const dashboard = await Dashboard.findOne({ userId }, "upcomingCharges");
     if (!dashboard) return res.status(404).json({ message: "Not found" });
     res.json(dashboard.upcomingCharges);
   } catch (error) {
@@ -42,7 +61,9 @@ export const getUpcomingCharges = async (req: Request, res: Response) => {
 // get debts
 export const getDebts = async (req: Request, res: Response) => {
   try {
-    const dashboard = await Dashboard.findOne({}, "debts");
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const dashboard = await Dashboard.findOne({ userId }, "debts");
     if (!dashboard) return res.status(404).json({ message: "Not found" });
     res.json(dashboard.debts);
   } catch (error) {
@@ -53,7 +74,9 @@ export const getDebts = async (req: Request, res: Response) => {
 // get Goals
 export const getGoals = async (req: Request, res: Response) => {
   try {
-    const dashboard = await Dashboard.findOne({}, "goals");
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const dashboard = await Dashboard.findOne({ userId }, "goals");
     if (!dashboard) return res.status(404).json({ message: "Not found" });
     res.json(dashboard.goals);
   } catch (error) {
@@ -64,7 +87,9 @@ export const getGoals = async (req: Request, res: Response) => {
 // get income
 export const getIncome = async (req: Request, res: Response) => {
   try {
-    const dashboard = await Dashboard.findOne({}, "income");
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const dashboard = await Dashboard.findOne({ userId }, "income");
     if (!dashboard) return res.status(404).json({ message: "Not found" });
     res.json(dashboard.income);
   } catch (error) {
@@ -74,12 +99,14 @@ export const getIncome = async (req: Request, res: Response) => {
 
 //POST a new upcoming charge
 export const addNewCharge = async (req: Request, res: Response) => {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
   const newUpcomingCharge = req.body;
   console.log("New upcoming charge: ", newUpcomingCharge);
-
   try {
     // get the dashboard ( the object containing all the data, including the upcoming charge array)
-    const dashboard = await Dashboard.findOne();
+    const dashboard = await Dashboard.findOne({ userId });
     if (!dashboard) return res.status(404).json({ message: "Not found" });
     // insert the new upcoming charge into the upcoming charges array
     dashboard.upcomingCharges.push(newUpcomingCharge);
@@ -99,11 +126,15 @@ export const addNewCharge = async (req: Request, res: Response) => {
 // PUT upcoming charges
 // TODO maybe add a check if the upcoming charge exists? unless i want multiple charges, it could be that the user is charged multiple times, same day, same amount, same company?
 export const updateCharge = async (req: Request, res: Response) => {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
   const { id } = req.params; //get the id of the upcoming charge from the params
   const updateData = req.body; // get the data from the body ( the form in my frontend edit)
   console.log("Updating...", id);
   try {
-    const dashboard = await Dashboard.findOne();
+    const dashboard = await Dashboard.findOne({ userId });
+
     if (!dashboard)
       return res.status(404).json({ message: "Dashboard not found" });
 
@@ -144,10 +175,12 @@ export const updateCharge = async (req: Request, res: Response) => {
 
 // DELETE upcoming charge
 export const deleteCharge = async (req: Request, res: Response) => {
+  const userId = getUserId(req); // ✅ FIXED
+  if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
   const { id } = req.params;
-  console.log("Deleting...", id);
   try {
-    const dashboard = await Dashboard.findOne();
+    const dashboard = await Dashboard.findOne({ userId });
     if (!dashboard) return res.status(404).json({ message: "Not found" });
 
     dashboard.upcomingCharges = dashboard.upcomingCharges.filter(
@@ -167,15 +200,17 @@ export const deleteCharge = async (req: Request, res: Response) => {
 
 // delete transaction
 export const deleteTransaction = async (req: Request, res: Response) => {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ message: "Unauthorized" });
   const { id } = req.params;
-
   try {
-    const dashboard = await Dashboard.findOne();
+    const dashboard = await Dashboard.findOne({ userId });
 
     if (!dashboard) return res.status(404).json({ message: "Not found" });
 
+    // filter by transaction id
     dashboard.transactions = dashboard.transactions.filter(
-      (charge) => charge._id.toString() !== id
+      (t) => t._id.toString() !== id
     );
     // filter out the transaction with the specific id from params
     // save changes
@@ -192,12 +227,14 @@ export const deleteTransaction = async (req: Request, res: Response) => {
 
 // add a new transaction
 export const addTransaction = async (req: Request, res: Response) => {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
   const newTransaction = req.body;
-  console.log(newTransaction);
 
   try {
     // get the dashboard ( the object containing all the data, including the transactions array)
-    const dashboard = await Dashboard.findOne();
+    const dashboard = await Dashboard.findOne({ userId });
     if (!dashboard) return res.status(404).json({ message: "Not found" });
     // insert the new transaction into the transactions array
     dashboard.transactions.push(newTransaction);
@@ -217,27 +254,31 @@ export const addTransaction = async (req: Request, res: Response) => {
 // PUT ( EDIT ) transaction
 // TODO maybe add a check if the transaction exists? unless i want multiple transactions, it could be that the user is charged multiple times, same day, same amount, same company?
 export const updateTransaction = async (req: Request, res: Response) => {
-  const { id } = req.params;
-  if (!id) return res.status(400).json({ message: "Missing transaction id" });
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
+  const { id } = req.params; // Transaction id
   const updateData = req.body;
+  if (!id) return res.status(400).json({ message: "Missing transaction id" });
   try {
-    const dashboard = await Dashboard.findOne();
+    const dashboard = await Dashboard.findOne({ userId });
     if (!dashboard)
       return res.status(404).json({ message: "Dashboard not found" });
 
-    // Prevent duplicate company + date
-    const duplicate = dashboard.transactions.some(
-      (c) =>
-        c._id.toString() !== id &&
+    // Prevent exact duplicate (but maybe a transaction with the same data should be allowed )
+    const duplicate = dashboard.transactions.some((c) => {
+      if (c._id.toString() === id) return false; // skip the transaction if same id
+      return (
         c.company === updateData.company &&
         c.date === updateData.date &&
         c.transactionType === updateData.transactionType &&
-        c.category === updateData.category
-    );
+        c.category === updateData.category &&
+        c.amount === updateData.amount
+      );
+    });
     if (duplicate) {
       return res.status(400).json({
-        message: "A transaction with the same company and date already exists.",
+        message: "A transaction with the same details already exists.",
       });
     }
 
@@ -245,21 +286,11 @@ export const updateTransaction = async (req: Request, res: Response) => {
       (c) => c._id.toString() === id
     );
     if (transactionIndex === -1)
-      return res.status(404).json({ message: "transaction not found" });
+      return res.status(404).json({ message: "Transaction not found" });
 
     // Update the transaction
     dashboard.transactions[transactionIndex] = { _id: id, ...updateData };
     await dashboard.save();
-
-    // Update upcomingCharges
-    const result = await Dashboard.findOneAndUpdate(
-      { "upcomingCharges._id": id },
-      { $set: { "upcomingCharges.$": { _id: id, ...updateData } } },
-      { new: true }
-    );
-
-    if (!result)
-      return res.status(404).json({ message: "Upcoming charge not found" });
 
     res.status(200).json({
       message: "Updated successfully",

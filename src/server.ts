@@ -1,11 +1,15 @@
+import "dotenv/config";
 import express from "express";
-import dotenv from "dotenv";
 import connectDB from "./config/db";
 import financeRoutes from "./routes/dashboardRoutes";
 import userRoutes from "./routes/userRoutes";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
-dotenv.config();
+// check if jwt secret exists
+if (!process.env.JWT_SECRET) {
+  throw new Error("FATAL ERROR: JWT_SECRET is not defined.");
+}
+
 const PORT = process.env.PORT || 4000;
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -41,8 +45,11 @@ app.use(express.json());
 
 connectDB();
 // ! app.use not app.get here
-app.use("/api", financeRoutes);
+// ORDER MATTERS:
+// if it was financeRoutes first,
+// express sees url starts with /api, matches the first router: financeRoutes, enters financeRoutes, the first line is router.use(authenticateToken), middleware runs, sees no token yet because user hasn't logged in or registered, throws 401 :(, request dies here, never reaches userRoutes.
 app.use("/api", userRoutes);
+app.use("/api", financeRoutes);
 
 app.listen(PORT, () => {
   console.log("Server is listening...", PORT);
