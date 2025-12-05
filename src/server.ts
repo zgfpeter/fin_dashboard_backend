@@ -14,7 +14,15 @@ const globalLimiter = rateLimit({
 });
 const app = express();
 app.use(globalLimiter);
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:3000",
+      "finance-dashboard-gules-omega.vercel.app",
+    ],
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 connectDB();
