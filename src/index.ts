@@ -48,6 +48,9 @@ connectDB();
 // ORDER MATTERS:
 // if it was financeRoutes first,
 // express sees url starts with /api, matches the first router: financeRoutes, enters financeRoutes, the first line is router.use(authenticateToken), middleware runs, sees no token yet because user hasn't logged in or registered, throws 401 :(, request dies here, never reaches userRoutes.
+app.get("/", (req, res) => {
+  res.send("Backend deployed and running!");
+});
 
 app.use("/api", userRoutes);
 app.use("/api", financeRoutes);
