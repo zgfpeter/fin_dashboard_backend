@@ -5,7 +5,6 @@ import financeRoutes from "./routes/dashboardRoutes";
 import userRoutes from "./routes/userRoutes";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
-import { seedData } from "./utils/seedDashboard";
 // check if jwt secret exists
 if (!process.env.JWT_SECRET) {
   throw new Error("FATAL ERROR: JWT_SECRET is not defined.");
