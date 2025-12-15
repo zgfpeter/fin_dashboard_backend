@@ -5,12 +5,13 @@ import financeRoutes from "./routes/dashboardRoutes";
 import userRoutes from "./routes/userRoutes";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
+import { seedData } from "./utils/seedDashboard";
 // check if jwt secret exists
 if (!process.env.JWT_SECRET) {
   throw new Error("FATAL ERROR: JWT_SECRET is not defined.");
 }
 
-const PORT = process.env.PORT || 4000;
+//const PORT = process.env.PORT || 4000;
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 100, // 100 requests per minute per IP
@@ -51,6 +52,12 @@ connectDB();
 app.use("/api", userRoutes);
 app.use("/api", financeRoutes);
 
-app.listen(PORT, () => {
-  console.log("Server is listening...", PORT);
-});
+export default app;
+
+// if it's not running in production, listen on port, otherwise not needed since vercel uses serverless functions
+if (process.env.NODE_ENV !== "production") {
+  const PORT = process.env.PORT || 4000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}

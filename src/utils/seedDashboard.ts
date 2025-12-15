@@ -1,26 +1,12 @@
 import path from "path";
-import dotenv from "dotenv";
+
 // This tells the script: "Look for .env in the current working directory (Root)"
-dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+
 import mongoose from "mongoose";
 import Dashboard from "../models/Dashboard";
 import User from "../models/User";
 
-const connectDB = async () => {
-  try {
-    await mongoose.connect(
-      "mongodb+srv://petros:Abc12345@freecluster.oelub3u.mongodb.net/finance_database?retryWrites=true&w=majority"
-    );
-    console.log("✅ MongoDB Connected");
-  } catch (error) {
-    console.error("❌ DB Connection Error:", error);
-    process.exit(1);
-  }
-};
-
-const seedData = async () => {
-  await connectDB();
-
+export const seedData = async () => {
   try {
     // 1. Find the user
     const user = await User.findOne(); // Finds the first user in your DB
@@ -41,6 +27,32 @@ const seedData = async () => {
         totalBalance: 4250.5,
         monthlyChange: 12.5,
       },
+      accounts: [
+        {
+          userId: user._id,
+          type: "checking",
+          balance: 2350.18,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          userId: user._id,
+          type: "savings",
+          balance: 1783.51,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          userId: user._id,
+          type: "credit",
+          balance: 864.34,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          userId: user._id,
+          type: "cash",
+          balance: 593.31,
+          createdAt: new Date().toISOString(),
+        },
+      ],
       income: [
         {
           company: "Tech Solutions Inc.",
@@ -53,7 +65,7 @@ const seedData = async () => {
       ],
       transactions: [
         {
-          date: "2025-01-12", // <--- Explicit String
+          date: "2025-01-12",
           company: "Spotify",
           amount: 12.99,
           transactionType: "expense",
@@ -90,7 +102,7 @@ const seedData = async () => {
       ],
       upcomingCharges: [
         {
-          date: "2025-02-01", // Future date
+          date: "2025-02-01",
           company: "Netflix",
           amount: 15.99,
           category: "Subscription",
@@ -124,6 +136,30 @@ const seedData = async () => {
           totalAmount: 40000,
           dueDate: "2030-05-15",
         },
+        {
+          company: "House Loan",
+          currentPaid: 500,
+          totalAmount: 2500,
+          dueDate: "2030-10-11",
+        },
+        {
+          company: "Chase Credit Card",
+          currentPaid: 500,
+          totalAmount: 2000,
+          dueDate: "2025-12-31",
+        },
+        {
+          company: "Student Loan",
+          currentPaid: 15000,
+          totalAmount: 40000,
+          dueDate: "2030-05-15",
+        },
+        {
+          company: "House Loan",
+          currentPaid: 500,
+          totalAmount: 2500,
+          dueDate: "2030-10-11",
+        },
       ],
       goals: [
         {
@@ -136,6 +172,30 @@ const seedData = async () => {
           title: "New MacBook",
           targetDate: "2025-11-20",
           currentAmount: 800,
+          targetAmount: 2500,
+        },
+        {
+          title: "Sumer Vacation",
+          targetDate: "2025-11-10",
+          currentAmount: 500,
+          targetAmount: 2500,
+        },
+        {
+          title: "Trip to Japan",
+          targetDate: "2025-06-01",
+          currentAmount: 1500,
+          targetAmount: 5000,
+        },
+        {
+          title: "New MacBook",
+          targetDate: "2025-11-20",
+          currentAmount: 800,
+          targetAmount: 2500,
+        },
+        {
+          title: "Sumer Vacation",
+          targetDate: "2025-11-10",
+          currentAmount: 500,
           targetAmount: 2500,
         },
       ],
@@ -151,5 +211,3 @@ const seedData = async () => {
     process.exit(1);
   }
 };
-
-//seedData();

@@ -1,11 +1,17 @@
 import mongoose, { Document, Schema } from "mongoose";
 export type ExpenseCategory =
-  | "Subscription"
-  | "Bill"
-  | "Loan"
-  | "Insurance"
-  | "Tax"
-  | "Other";
+  | "subscription"
+  | "bill"
+  | "loan"
+  | "insurance"
+  | "tax"
+  | "other";
+
+export type AccountType = "checking" | "savings" | "credit" | "cash";
+
+// an interface for Typescript, it helps it understand the types of my data. It only exists at development type, is completely remoed when the code runs.
+// Defines what properties exist, what types are expected.
+// it Doesn't validate data, doesn't create a database structure, mongodb never sees it.
 export interface IDashboard extends Document {
   // user id, each user will have their own data
   userId: mongoose.Types.ObjectId;
@@ -13,6 +19,15 @@ export interface IDashboard extends Document {
     totalBalance: number;
     monthlyChange: number;
   };
+  accounts: [
+    {
+      _id: string;
+      userId: string;
+      type: AccountType;
+      balance: number;
+      createdAt: string;
+    }
+  ];
   transactions: {
     _id: string; // because mongodb creates _id automatically
     date: string;
@@ -49,7 +64,10 @@ export interface IDashboard extends Document {
   }[];
 }
 
-// this is how the data will look like in the database
+// A mongoose schema. Exists at runtime, tells MongoDB how to store, validate, and structure data. This is what actually enforces rules in the database.
+// I need both the interface, and the schema.
+// With new Schema<IDashboard>... mongoose knows the structure, typescript knows the document type returned.
+// So when i do await Dashboard.findOne(...), i get intellisense, type checking, fewer runtime bugs
 const DashboardSchema = new Schema<IDashboard>(
   {
     // user id, each user will have their own data
@@ -63,6 +81,28 @@ const DashboardSchema = new Schema<IDashboard>(
       totalBalance: Number,
       monthlyChange: Number,
     },
+    accounts: [
+      {
+        userId: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        type: {
+          type: String,
+          enum: ["checking", "savings", "credit", "cash"],
+        },
+        balance: Number,
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+        _id: {
+          type: Schema.Types.ObjectId,
+          auto: true,
+        },
+      },
+    ],
 
     transactions: [
       {
@@ -74,7 +114,7 @@ const DashboardSchema = new Schema<IDashboard>(
           type: String,
           enum: ["Subscription", "Bill", "Loan", "Insurance", "Tax", "Other"],
         },
-        _id: { type: Schema.Types.ObjectId, auto: true }, // <-- add this
+        _id: { type: Schema.Types.ObjectId, auto: true },
       },
     ],
 

@@ -14,7 +14,14 @@ import {
   getTransactions,
   getUpcomingCharges,
   updateCharge,
+  updateOverview,
   updateTransaction,
+  updateGoal,
+  addNewGoal,
+  deleteGoal,
+  updateDebt,
+  addNewDebt,
+  deleteDebt,
 } from "../controllers/dashboardController";
 
 // apply the middleware globally to this router
@@ -24,6 +31,9 @@ console.log("Auth Middleware Value:", authenticateToken);
 router.use(authenticateToken);
 
 router.get("/dashboard", getDashboard);
+
+// update overview (total balance and accounts)
+router.put("/dashboard/overview", updateOverview);
 
 // get transactions
 // Transactions
@@ -49,10 +59,15 @@ router
   .delete(deleteCharge);
 
 // get debts
-router.get("/dashboard/debts", getDebts);
+
+router.route("/dashboard/debts").get(getDebts).post(addNewDebt);
+
+router.route("/dashboard/debts/:id").put(updateDebt).delete(deleteDebt);
 
 // get goals
-router.get("/dashboard/goals", getGoals);
+router.route("/dashboard/goals").get(getGoals).post(addNewGoal);
+
+router.route("/dashboard/goals/:id").put(updateGoal).delete(deleteGoal);
 
 // get income
 router.get("/dashboard/income", getIncome);
