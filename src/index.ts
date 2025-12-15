@@ -23,7 +23,7 @@ app.use(
     origin: function (origin, callback) {
       const allowedOrigins = [
         "http://localhost:3000",
-        "https://finance-dashboard-gules-omega.vercel.app", // your production domain
+        "https://finance-dashboard-gules-omega.vercel.app", // frontend production domain
       ];
 
       const vercelPreviewRegex = /^https:\/\/.*\.vercel\.app$/;
@@ -54,9 +54,9 @@ app.use("/api", financeRoutes);
 export default app;
 
 // if it's not running in production, listen on port, otherwise not needed since vercel uses serverless functions
-if (process.env.NODE_ENV !== "production") {
-  const PORT = process.env.PORT || 4000;
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-}
+// if (process.env.NODE_ENV !== "production") {
+//   const PORT = process.env.PORT || 4000;
+//   app.listen(PORT, () => {
+//     console.log(`Server running on port ${PORT}`);
+//   });
+// }
