@@ -117,17 +117,17 @@ export const addNewDebt = async (req: Request, res: Response) => {
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
   const newDebt = req.body;
-  console.log("New goal: ", newDebt);
+  console.log("New Debt: ", newDebt);
   try {
     // get the dashboard ( the object containing all the data, including the debts array)
     const dashboard = await Dashboard.findOne({ userId });
     if (!dashboard) return res.status(404).json({ message: "Not found" });
-    // insert the new goal into the debt array
+    // insert the new Debt into the debt array
     dashboard.debts.push(newDebt);
     await dashboard.save(); // save changes
-    const addedDebt = dashboard.debts[dashboard.debts.length - 1]; // the new goal will be the last one, so i can send it back
+    const addedDebt = dashboard.debts[dashboard.debts.length - 1]; // the new Debt will be the last one, so i can send it back
     res.status(201).json({
-      message: "Goal added successfully",
+      message: "Debt added successfully",
       addedDebt: addedDebt,
     });
   } catch (error) {
