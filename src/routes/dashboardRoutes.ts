@@ -10,7 +10,7 @@ import {
   getDashboard,
   getDebts,
   getGoals,
-  getIncome,
+  // getIncome,
   getTransactions,
   getUpcomingCharges,
   updateCharge,
@@ -22,6 +22,7 @@ import {
   updateDebt,
   addNewDebt,
   deleteDebt,
+  // getIncomeSumary,
 } from "../controllers/dashboardController";
 
 // apply the middleware globally to this router
@@ -69,7 +70,9 @@ router.route("/dashboard/goals").get(getGoals).post(addNewGoal);
 
 router.route("/dashboard/goals/:id").put(updateGoal).delete(deleteGoal);
 
-// get income
-router.get("/dashboard/income", getIncome);
+// // get income
+// router.get("/dashboard/income", getIncome);
 
+// get income summary ( monthly differences)
+// router.get("/dashboard/income-summary", getIncomeSumary);
 export default router;

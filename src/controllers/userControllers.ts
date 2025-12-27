@@ -35,7 +35,7 @@ export const userSignUp = async (req: Request, res: Response) => {
       upcomingCharges: [],
       debts: [],
       goals: [],
-      income: [],
+      // income: [],
     });
 
     res.status(201).json({

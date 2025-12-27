@@ -21,46 +21,48 @@ export interface IDashboard extends Document {
   };
   accounts: [
     {
-      _id: string;
+      _id?: string;
       userId: string;
       type: AccountType;
       balance: number;
-      createdAt: string;
+      createdAt: Date;
     }
   ];
   transactions: {
-    _id: string; // because mongodb creates _id automatically
-    date: string;
+    _id?: mongoose.Types.ObjectId; // because mongodb creates _id automatically
+    date: Date;
     company: string;
     amount: number;
-    transactionType: string;
+    transactionType: "income" | "expense";
     category: ExpenseCategory;
   }[];
   upcomingCharges: {
-    _id: string;
-    date: string;
+    _id?: mongoose.Types.ObjectId;
+    date: Date;
     company: string;
     amount: number;
     category: ExpenseCategory;
+    recurring?: boolean;
   }[];
   debts: {
-    _id: string;
+    _id: mongoose.Types.ObjectId;
     company: string;
     currentPaid: number;
     totalAmount: number;
-    dueDate: string;
+    dueDate: Date;
   }[];
   goals: {
-    _id: string;
+    _id?: mongoose.Types.ObjectId;
     title: string;
-    targetDate: string;
+    targetDate: Date;
     currentAmount: number;
     targetAmount: number;
   }[];
   income: {
-    _id: string;
+    _id?: mongoose.Types.ObjectId;
     company: string;
     amount: number;
+    date: Date;
   }[];
 }
 
@@ -78,8 +80,8 @@ const DashboardSchema = new Schema<IDashboard>(
       unique: true,
     },
     overview: {
-      totalBalance: Number,
-      monthlyChange: Number,
+      totalBalance: { type: Number, default: 0 },
+      monthlyChange: { type: Number, default: 0 },
     },
     accounts: [
       {
@@ -91,72 +93,127 @@ const DashboardSchema = new Schema<IDashboard>(
         type: {
           type: String,
           enum: ["checking", "savings", "credit", "cash"],
+          required: true,
         },
-        balance: Number,
+        balance: {
+          type: Number,
+          required: true,
+        },
         createdAt: {
           type: Date,
           default: Date.now,
-        },
-        _id: {
-          type: Schema.Types.ObjectId,
-          auto: true,
         },
       },
     ],
 
     transactions: [
       {
-        date: String,
-        company: String,
-        amount: Number,
-        transactionType: String,
+        date: {
+          type: Date,
+          required: true,
+        },
+        company: {
+          type: String,
+          required: true,
+        },
+        amount: {
+          type: Number,
+          required: true,
+        },
+        transactionType: {
+          type: String,
+          enum: ["income", "expense"],
+          required: true,
+        },
         category: {
           type: String,
-          enum: ["Subscription", "Bill", "Loan", "Insurance", "Tax", "Other"],
+          enum: ["subscription", "bill", "loan", "insurance", "tax", "other"],
         },
-        _id: { type: Schema.Types.ObjectId, auto: true },
       },
     ],
 
     upcomingCharges: [
       {
-        date: String,
-        company: String,
-        amount: Number,
+        date: {
+          type: Date,
+          required: true,
+        },
+        company: {
+          type: String,
+          required: true,
+        },
+        amount: {
+          type: Number,
+          required: true,
+        },
         category: {
           type: String,
-          enum: ["Subscription", "Bill", "Loan", "Insurance", "Tax", "Other"],
+          enum: ["subscription", "bill", "loan", "insurance", "tax", "other"],
+          required: true,
         },
-        recurring: Boolean,
-        _id: { type: Schema.Types.ObjectId, auto: true },
+        recurring: {
+          type: Boolean,
+          default: false,
+        },
       },
     ],
 
     debts: [
       {
-        company: String,
-        currentPaid: Number,
-        totalAmount: Number,
-        dueDate: String,
-        _id: { type: Schema.Types.ObjectId, auto: true },
+        company: {
+          type: String,
+          required: true,
+        },
+        currentPaid: {
+          type: Number,
+          required: true,
+        },
+        totalAmount: {
+          type: Number,
+          required: true,
+        },
+        dueDate: {
+          type: Date,
+          required: true,
+        },
       },
     ],
 
     goals: [
       {
-        title: String,
-        targetDate: String,
-        currentAmount: Number,
-        targetAmount: Number,
-        _id: { type: Schema.Types.ObjectId, auto: true },
+        title: {
+          type: String,
+          required: true,
+        },
+        targetDate: {
+          type: Date,
+          required: true,
+        },
+        currentAmount: {
+          type: Number,
+          required: true,
+        },
+        targetAmount: {
+          type: Number,
+          required: true,
+        },
       },
     ],
 
     income: [
       {
-        company: String,
-        amount: Number,
-        _id: { type: Schema.Types.ObjectId, auto: true },
+        company: {
+          type: String,
+          required: true,
+        },
+        amount: {
+          type: Number,
+          required: true,
+        },
+        date: {
+          type: Date,
+          default: Date.now,
+        },
       },
     ],
   },

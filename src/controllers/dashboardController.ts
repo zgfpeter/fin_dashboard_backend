@@ -2,6 +2,7 @@
 import type { Request, Response } from "express";
 import Dashboard from "../models/Dashboard";
 import { AuthRequest } from "../middleware/authMiddleware";
+import mongoose from "mongoose";
 // Helper function to safely get User ID
 const getUserId = (req: AuthRequest) => {
   return req.user?.id || req.user?._id;
@@ -255,7 +256,7 @@ export const updateGoal = async (req: Request, res: Response) => {
 
     // Prevent exact duplicate (but maybe a goal with the same data should be allowed )
     const duplicate = dashboard.goals.some((c) => {
-      if (c._id.toString() === id) return false; // skip the goal if same id
+      if (c._id?.toString() === id) return false; // skip the goal if same id
       return (
         c.title === updateData.title && c.targetDate === updateData.targetDate
       );
@@ -266,7 +267,9 @@ export const updateGoal = async (req: Request, res: Response) => {
       });
     }
 
-    const goalIndex = dashboard.goals.findIndex((c) => c._id.toString() === id);
+    const goalIndex = dashboard.goals.findIndex(
+      (c) => c._id?.toString() === id
+    );
     if (goalIndex === -1)
       return res.status(404).json({ message: "Goal not found" });
 
@@ -295,7 +298,7 @@ export const deleteGoal = async (req: Request, res: Response) => {
     if (!dashboard) return res.status(404).json({ message: "Not found" });
 
     dashboard.goals = dashboard.goals.filter(
-      (goal) => goal._id.toString() !== id
+      (goal) => goal._id?.toString() !== id
     );
 
     await dashboard.save();
@@ -309,18 +312,18 @@ export const deleteGoal = async (req: Request, res: Response) => {
   }
 };
 
-// get income
-export const getIncome = async (req: Request, res: Response) => {
-  try {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ message: "Unauthorized" });
-    const dashboard = await Dashboard.findOne({ userId }, "income");
-    if (!dashboard) return res.status(404).json({ message: "Not found" });
-    res.json(dashboard.income);
-  } catch (error) {
-    res.status(500).json({ message: "Server error" });
-  }
-};
+// // get income
+// export const getIncome = async (req: Request, res: Response) => {
+//   try {
+//     const userId = getUserId(req);
+//     if (!userId) return res.status(401).json({ message: "Unauthorized" });
+//     const dashboard = await Dashboard.findOne({ userId }, "income");
+//     if (!dashboard) return res.status(404).json({ message: "Not found" });
+//     res.json(dashboard.income);
+//   } catch (error) {
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
 
 //POST a new upcoming charge
 export const addNewCharge = async (req: Request, res: Response) => {
@@ -366,7 +369,7 @@ export const updateCharge = async (req: Request, res: Response) => {
     // Prevent duplicate company + date
     const duplicate = dashboard.upcomingCharges.some(
       (c) =>
-        c._id.toString() !== id &&
+        c._id?.toString() !== id &&
         c.company === updateData.company &&
         c.date === updateData.date &&
         c.category === updateData.category
@@ -379,7 +382,7 @@ export const updateCharge = async (req: Request, res: Response) => {
     }
 
     const chargeIndex = dashboard.upcomingCharges.findIndex(
-      (c) => c._id.toString() === id
+      (c) => c._id?.toString() === id
     );
     if (chargeIndex === -1)
       return res.status(404).json({ message: "Upcoming charge not found" });
@@ -409,7 +412,7 @@ export const deleteCharge = async (req: Request, res: Response) => {
     if (!dashboard) return res.status(404).json({ message: "Not found" });
 
     dashboard.upcomingCharges = dashboard.upcomingCharges.filter(
-      (charge) => charge._id.toString() !== id
+      (charge) => charge._id?.toString() !== id
     );
 
     await dashboard.save();
@@ -435,7 +438,7 @@ export const deleteTransaction = async (req: Request, res: Response) => {
 
     // filter by transaction id
     dashboard.transactions = dashboard.transactions.filter(
-      (t) => t._id.toString() !== id
+      (t) => t._id?.toString() !== id
     );
     // filter out the transaction with the specific id from params
     // save changes
@@ -455,8 +458,36 @@ export const addTransaction = async (req: Request, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-  const newTransaction = req.body;
+  const { date, company, amount, transactionType, category } = req.body;
+  // Basic validation. Even though i do validate on the frontend, validation on the backend is critical. Guarantees data integrity.
+  if (!date || !company || !amount || !transactionType) {
+    return res.status(400).json({ message: "Missing required fields" });
+  }
 
+  if (!["income", "expense"].includes(transactionType)) {
+    return res.status(400).json({ message: "Invalid transaction type" });
+  }
+
+  if (Number(amount) <= 0) {
+    return res.status(400).json({ message: "Amount must be positive" });
+  }
+
+  // Expense
+  if (transactionType === "expense" && !category) {
+    return res
+      .status(400)
+      .json({ message: "Category is required for expenses" });
+  }
+
+  // 3️Normalize transaction
+  const newTransaction = {
+    date: new Date(date),
+    company: company.trim(),
+    amount: Number(amount),
+    transactionType,
+    category: transactionType === "expense" ? category : undefined,
+    createdAt: new Date(),
+  };
   try {
     // get the dashboard ( the object containing all the data, including the transactions array)
     const dashboard = await Dashboard.findOne({ userId });
@@ -492,7 +523,7 @@ export const updateTransaction = async (req: Request, res: Response) => {
 
     // Prevent exact duplicate (but maybe a transaction with the same data should be allowed )
     const duplicate = dashboard.transactions.some((c) => {
-      if (c._id.toString() === id) return false; // skip the transaction if same id
+      if (c._id?.toString() === id) return false; // skip the transaction if same id
       return (
         c.company === updateData.company &&
         c.date === updateData.date &&
@@ -508,7 +539,7 @@ export const updateTransaction = async (req: Request, res: Response) => {
     }
 
     const transactionIndex = dashboard.transactions.findIndex(
-      (c) => c._id.toString() === id
+      (c) => c._id?.toString() === id
     );
     if (transactionIndex === -1)
       return res.status(404).json({ message: "Transaction not found" });
@@ -526,3 +557,67 @@ export const updateTransaction = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// get monthly income summary
+// ! overkill here, if i had millions of records it might be worth it
+// but since i'm fetching the dashboard on the frontend, i can do the calculations there.
+// if i do aggregations, that means a second query, extra DB work, extra latency
+// export const getIncomeSumary = async (req: AuthRequest, res: Response) => {
+//   const userId = getUserId(req);
+//   if (!userId) {
+//     return res.status(401).json({ message: "Unauthorized" });
+//   }
+//   const now = new Date(); // get present date
+//   const startOfThisMonth = new Date(
+//     now.getFullYear(),
+//     now.getMonth(), // get the current year and month
+//     1 // day, can take values from 1 to 31
+//   );
+
+//   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1); // get last month
+
+//   const result = await Dashboard.aggregate([
+//     { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+//     { $unwind: "$income" },
+//     {
+//       $match: {
+//         "income.date": {
+//           $gte: startOfLastMonth,
+//           $lt: new Date(now.getFullYear(), now.getMonth() + 1, 1),
+//         },
+//       },
+//     },
+//     {
+//       $group: {
+//         _id: {
+//           month: { $month: "$income.date" },
+//           year: { $year: "$income.date" },
+//         },
+//         total: { $sum: "$income.amount" },
+//       },
+//     },
+//   ]);
+
+//   let thisMonth = 0;
+//   let lastMonth = 0;
+//   result.forEach((r) => {
+//     if (
+//       r._id.month === startOfThisMonth.getMonth() + 1 &&
+//       r._id.year === startOfThisMonth.getFullYear()
+//     ) {
+//       thisMonth = r.total;
+//     }
+
+//     if (
+//       r._id.month === startOfLastMonth.getMonth() + 1 &&
+//       r._id.year === startOfLastMonth.getFullYear()
+//     ) {
+//       lastMonth = r.total;
+//     }
+//   });
+
+//   console.log("This month:", thisMonth);
+//   console.log("Last month: ", lastMonth);
+//   console.log("Difference: ", thisMonth - lastMonth);
+//   res.json({ thisMonth, lastMonth, difference: thisMonth - lastMonth }); // send back the amounts for this month, last month, and the difference
+// };
