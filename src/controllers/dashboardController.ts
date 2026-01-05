@@ -1,6 +1,6 @@
 // get the whole single data object ( in my database i have one object with all the data )
 import type { Request, Response } from "express";
-import Dashboard from "../models/Dashboard";
+import Dashboard, { AccountType } from "../models/Dashboard";
 import { AuthRequest } from "../middleware/authMiddleware";
 import mongoose from "mongoose";
 // Helper function to safely get User ID
@@ -17,11 +17,27 @@ export const getDashboard = async (req: Request, res: Response) => {
     }
 
     // get the dashboard for this specific user
-    const dashboard = await Dashboard.findOne({ userId });
+    let dashboard = await Dashboard.findOne({ userId });
 
+    // if no dashboard exists, create it
     if (!dashboard) {
-      console.log("Dashboard not found for user:", userId);
-      return res.status(404).json({ message: "Dashboard not found" });
+      dashboard = await Dashboard.create({
+        userId,
+        overview: {
+          totalBalance: 0,
+          monthlyChange: 0,
+        },
+        accounts: [
+          {
+            type: "cash",
+            balance: 0,
+          },
+        ],
+        transactions: [],
+        upcomingCharges: [],
+        debts: [],
+        goals: [],
+      });
     }
 
     res.status(200).json(dashboard);
@@ -458,9 +474,10 @@ export const addTransaction = async (req: Request, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-  const { date, company, amount, transactionType, category } = req.body;
+  const { date, company, amount, transactionType, category, account } =
+    req.body;
   // Basic validation. Even though i do validate on the frontend, validation on the backend is critical. Guarantees data integrity.
-  if (!date || !company || !amount || !transactionType) {
+  if (!date || !company || !amount || !transactionType || !account) {
     return res.status(400).json({ message: "Missing required fields" });
   }
 
@@ -486,6 +503,7 @@ export const addTransaction = async (req: Request, res: Response) => {
     amount: Number(amount),
     transactionType,
     category: transactionType === "expense" ? category : undefined,
+    account: account,
     createdAt: new Date(),
   };
   try {
@@ -494,6 +512,27 @@ export const addTransaction = async (req: Request, res: Response) => {
     if (!dashboard) return res.status(404).json({ message: "Not found" });
     // insert the new transaction into the transactions array
     dashboard.transactions.push(newTransaction);
+    const accountIndex = dashboard.accounts.findIndex(
+      (a) => a.type === account
+    );
+
+    // Update account balance or create the account if it doesn't exist
+    if (accountIndex !== -1 && dashboard.accounts[accountIndex]) {
+      if (transactionType === "expense") {
+        dashboard.accounts[accountIndex].balance -= Number(amount);
+      } else {
+        dashboard.accounts[accountIndex].balance += Number(amount);
+      }
+    } else {
+      // Create the account if it doesn’t exist
+      dashboard.accounts.push({
+        userId: new mongoose.Types.ObjectId(userId).toString(), // ensure ObjectId
+        type: account as AccountType,
+        balance:
+          transactionType === "expense" ? -Number(amount) : Number(amount),
+        createdAt: new Date(),
+      });
+    }
     await dashboard.save(); // save changes
     const addedTransaction =
       dashboard.transactions[dashboard.transactions.length - 1]; // the new transaction will be the last one, so i can send it back

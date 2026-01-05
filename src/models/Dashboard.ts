@@ -35,6 +35,7 @@ export interface IDashboard extends Document {
     amount: number;
     transactionType: "income" | "expense";
     category: ExpenseCategory;
+    account: AccountType;
   }[];
   upcomingCharges: {
     _id?: mongoose.Types.ObjectId;
@@ -128,6 +129,12 @@ const DashboardSchema = new Schema<IDashboard>(
         category: {
           type: String,
           enum: ["subscription", "bill", "loan", "insurance", "tax", "other"],
+        },
+        account: {
+          type: String,
+          enum: ["checking", "savings", "credit", "cash"],
+          default: "cash",
+          required: true,
         },
       },
     ],

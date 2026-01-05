@@ -36,6 +36,14 @@ export const userSignUp = async (req: Request, res: Response) => {
     await Dashboard.create({
       userId: newUser._id,
       overview: { totalBalance: 0, monthlyChange: 0 },
+      accounts: [
+        {
+          type: "cash",
+          balance: 0,
+          userId: newUser._id.toString(), // TODO check this again, is .toString() correct?
+          createdAt: new Date(),
+        },
+      ],
       transactions: [],
       upcomingCharges: [],
       debts: [],
