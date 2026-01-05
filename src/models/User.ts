@@ -9,6 +9,7 @@ export interface IUser extends Document {
   username: string;
   password: string;
   createdAt: Date;
+  currency: string;
   comparePassword(candidate: string): Promise<boolean>;
 }
 
@@ -34,6 +35,10 @@ const UserSchema = new Schema<IUser>(
     createdAt: {
       type: Date,
       default: Date.now,
+    },
+    currency: {
+      type: String,
+      default: "EUR",
     },
   },
   {

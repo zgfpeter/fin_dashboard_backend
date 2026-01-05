@@ -2,6 +2,11 @@ import type { Request, Response } from "express";
 import User from "../models/User";
 import Dashboard from "../models/Dashboard";
 import jwt from "jsonwebtoken";
+import { AuthRequest } from "../middleware/authMiddleware";
+
+const getUserId = (req: AuthRequest) => {
+  return req.user?.id || req.user?._id;
+};
 export const userSignUp = async (req: Request, res: Response) => {
   console.log("Signup request received:", req.body);
   const { email, username, password } = req.body;
@@ -94,7 +99,47 @@ export const userLogin = async (req: Request, res: Response) => {
         id: user._id,
         email: user.email,
         username: user.username,
+        currency: user.currency,
       },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// change user details
+
+export const changeUserDetails = async (req: Request, res: Response) => {
+  console.log("User is changing details...");
+  const { username, currency, avatar } = req.body;
+  // get the user id from the middleware
+  const userId = getUserId(req);
+
+  try {
+    const user = await User.findOne({ username });
+
+    // update user
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        // if username is truthy, then
+        ...(username && { username }),
+        // evaluates to ...{username:username}, and is inserted into the object being built. In short, if user actually provides a username, then it is inserted into the document, otherwise it's not
+        ...(currency && { currency }),
+        ...(avatar && { avatar }),
+      },
+      { new: true } // return updated document
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // if user has been successfully updated
+    res.status(200).json({
+      message: "User details updated successfully",
+      user: updatedUser,
     });
   } catch (error) {
     console.error(error);

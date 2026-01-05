@@ -1,7 +1,11 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
-import { userLogin, userSignUp } from "../controllers/userControllers";
-
+import { authenticateToken } from "../middleware/authMiddleware";
+import {
+  changeUserDetails,
+  userLogin,
+  userSignUp,
+} from "../controllers/userControllers";
 const router = Router();
 
 // for dangerous routes (login,signup,password reset, OTP verification etc), i need to protect them by applying a rate limit
@@ -23,5 +27,9 @@ router.post("/users/login", loginLimiter, userLogin);
 //  handle user sign up
 // login limiter limits login requests
 router.post("/users/signup", loginLimiter, userSignUp);
+
+// update user details
+router.use(authenticateToken);
+router.patch("/users/update", changeUserDetails);
 
 export default router;
