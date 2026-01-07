@@ -2,12 +2,15 @@
 import type { Request, Response } from "express";
 import Dashboard, { AccountType } from "../models/Dashboard";
 import { AuthRequest } from "../middleware/authMiddleware";
+import RecurringCharge from "../models/RecurringCharge";
+import { generateOccurrencesIso } from "../utils/recurrence";
+
 import mongoose from "mongoose";
 // Helper function to safely get User ID
 const getUserId = (req: AuthRequest) => {
   return req.user?.id || req.user?._id;
 };
-export const getDashboard = async (req: Request, res: Response) => {
+export const getDashboard = async (req: AuthRequest, res: Response) => {
   try {
     // find the logged-in user's id. ( middleware sets req.user)
     const userId = getUserId(req);
@@ -47,7 +50,7 @@ export const getDashboard = async (req: Request, res: Response) => {
   }
 };
 
-export const updateOverview = async (req: Request, res: Response) => {
+export const updateOverview = async (req: AuthRequest, res: Response) => {
   try {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
@@ -88,7 +91,7 @@ export const updateOverview = async (req: Request, res: Response) => {
 };
 
 // get transactions
-export const getTransactions = async (req: Request, res: Response) => {
+export const getTransactions = async (req: AuthRequest, res: Response) => {
   try {
     // the second argument "upcomingCharges" tells Mongoos to only return the transactions field
     const userId = getUserId(req);
@@ -103,7 +106,7 @@ export const getTransactions = async (req: Request, res: Response) => {
 };
 
 // get upcoming Charges
-export const getUpcomingCharges = async (req: Request, res: Response) => {
+export const getUpcomingCharges = async (req: AuthRequest, res: Response) => {
   try {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
@@ -116,7 +119,7 @@ export const getUpcomingCharges = async (req: Request, res: Response) => {
 };
 
 // get debts
-export const getDebts = async (req: Request, res: Response) => {
+export const getDebts = async (req: AuthRequest, res: Response) => {
   try {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
@@ -129,7 +132,7 @@ export const getDebts = async (req: Request, res: Response) => {
 };
 
 //POST a new debt
-export const addNewDebt = async (req: Request, res: Response) => {
+export const addNewDebt = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
@@ -153,7 +156,7 @@ export const addNewDebt = async (req: Request, res: Response) => {
   }
 };
 
-export const updateDebt = async (req: Request, res: Response) => {
+export const updateDebt = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
@@ -197,7 +200,7 @@ export const updateDebt = async (req: Request, res: Response) => {
 };
 
 // DELETE debt
-export const deleteDebt = async (req: Request, res: Response) => {
+export const deleteDebt = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
@@ -222,7 +225,7 @@ export const deleteDebt = async (req: Request, res: Response) => {
 };
 
 // get Goals
-export const getGoals = async (req: Request, res: Response) => {
+export const getGoals = async (req: AuthRequest, res: Response) => {
   try {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
@@ -234,7 +237,7 @@ export const getGoals = async (req: Request, res: Response) => {
   }
 };
 //POST a new goal
-export const addNewGoal = async (req: Request, res: Response) => {
+export const addNewGoal = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
@@ -258,7 +261,7 @@ export const addNewGoal = async (req: Request, res: Response) => {
   }
 };
 
-export const updateGoal = async (req: Request, res: Response) => {
+export const updateGoal = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
@@ -304,7 +307,7 @@ export const updateGoal = async (req: Request, res: Response) => {
 };
 
 // DELETE goal
-export const deleteGoal = async (req: Request, res: Response) => {
+export const deleteGoal = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
@@ -329,7 +332,7 @@ export const deleteGoal = async (req: Request, res: Response) => {
 };
 
 // // get income
-// export const getIncome = async (req: Request, res: Response) => {
+// export const getIncome = async (req: AuthRequest, res: Response) => {
 //   try {
 //     const userId = getUserId(req);
 //     if (!userId) return res.status(401).json({ message: "Unauthorized" });
@@ -342,34 +345,228 @@ export const deleteGoal = async (req: Request, res: Response) => {
 // };
 
 //POST a new upcoming charge
-export const addNewCharge = async (req: Request, res: Response) => {
+// controllers/dashboardController.ts (snippet)
+
+// POST a new upcoming charge
+// POST a new upcoming charge
+// POST a new upcoming charge
+export const addNewCharge = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-  const newUpcomingCharge = req.body;
-  console.log("New upcoming charge: ", newUpcomingCharge);
+  // We expect body to be something like:
+  // { date, company, amount, category, repeating, interval, endDate, count }
+  const {
+    date,
+    company,
+    amount,
+    category,
+    repeating = "noRepeat",
+    interval = 1,
+    endDate,
+    count,
+  } = req.body as any;
+
+  // Basic validation
+  if (!date || !company || !amount || !category) {
+    return res.status(400).json({ message: "Missing required fields" });
+  }
+
+  // FIX: basic server-side sanity checks
+  if (repeating && repeating !== "noRepeat") {
+    const valid = ["Weekly", "BiWeekly", "Monthly", "Yearly"].includes(
+      repeating
+    );
+    if (!valid)
+      return res.status(400).json({ message: "Invalid repeating value" });
+    if (!Number.isFinite(Number(interval)) || Number(interval) < 1) {
+      return res.status(400).json({ message: "Invalid interval" });
+    }
+    if (
+      count !== undefined &&
+      !(Number.isFinite(Number(count)) && Number(count) >= 1)
+    ) {
+      return res.status(400).json({ message: "Invalid count" });
+    }
+  }
+
   try {
-    // get the dashboard ( the object containing all the data, including the upcoming charge array)
     const dashboard = await Dashboard.findOne({ userId });
     if (!dashboard) return res.status(404).json({ message: "Not found" });
-    // insert the new upcoming charge into the upcoming charges array
-    dashboard.upcomingCharges.push(newUpcomingCharge);
-    await dashboard.save(); // save changes
-    const addedUpcomingCharge =
-      dashboard.upcomingCharges[dashboard.upcomingCharges.length - 1]; // the new upcoming charge will be the last one, so i can send it back
+
+    // NON-REPEATING (single upcoming charge)
+    if (!repeating || repeating === "noRepeat") {
+      const upcoming = {
+        date: new Date(date),
+        company: company.trim(),
+        amount: Number(amount),
+        category,
+        recurring: false,
+      };
+      // FIX: avoid exact duplicates (company + date)
+      const duplicate = dashboard.upcomingCharges.some(
+        (c: any) =>
+          c.company === upcoming.company &&
+          new Date(c.date).toISOString().slice(0, 10) ===
+            new Date(upcoming.date).toISOString().slice(0, 10)
+      );
+      if (duplicate) {
+        return res.status(400).json({
+          message:
+            "An upcoming charge with the same company and date already exists.",
+        });
+      }
+
+      dashboard.upcomingCharges.push(upcoming);
+      await dashboard.save();
+      const addedUpcomingCharge =
+        dashboard.upcomingCharges[dashboard.upcomingCharges.length - 1];
+      return res.status(201).json({
+        message: "Upcoming charge added successfully",
+        upcomingCharge: addedUpcomingCharge,
+      });
+    }
+
+    // REPEATING: create RecurringCharge + generate initial occurrences
+    // Create recurring rule
+
+    // build a ruleData object so we never pass `undefined` for optional fields
+    const ruleData: any = {
+      userId,
+      startDate: new Date(date),
+      company: company.trim(),
+      amount: Number(amount),
+      category,
+      repeating,
+      interval: Number(interval) || 1,
+    };
+
+    // only add optional fields if they exist
+    if (endDate) {
+      ruleData.endDate = new Date(endDate);
+    }
+
+    if (count !== undefined) {
+      ruleData.count = Number(count);
+    }
+
+    // DO NOT set lastGenerated at creation time
+    // it should either be omitted or set later by the runner
+
+    // create the rule
+    const ruleRaw = await RecurringCharge.create(ruleData);
+
+    // SAFETY: normalize returned value to a single document (some TS overloads make `create` look like it can return arrays)
+    const rule = Array.isArray(ruleRaw) ? ruleRaw[0] : ruleRaw;
+
+    // get rule id string once and use it for all comparisons (avoids TS complaining about _id on unions)
+    const ruleIdStr = (rule as any)?._id
+      ? (rule as any)._id.toString()
+      : undefined;
+
+    // Decide how many occurrences to generate initially
+    const DEFAULT_GEN = 12; // e.g. next 12 occurrences (1 year for monthly)
+    // FIX: compute how many already exist for this user+rule (should be 0 right after creation, but defensive)
+    const alreadyGenerated = dashboard.upcomingCharges.filter(
+      (c: any) =>
+        c.parentRecurringId &&
+        ruleIdStr &&
+        c.parentRecurringId.toString() === ruleIdStr
+    ).length;
+
+    const maxToGenerate = Math.min(
+      count ? Math.max(0, Number(count) - alreadyGenerated) : DEFAULT_GEN,
+      36
+    ); // hard cap 36
+
+    // generate ISO occurrences
+    // generate ISO occurrences
+    // generate ISO occurrences
+    // build the options object but only add untilIso if endDate exists — avoids `string | undefined` mismatch
+    const genOptions = {
+      startDateIso: (date as string).slice(0, 10), // ensure YYYY-MM-DD
+      // make sure repeating is a plain string (it may be typed as `any` from req.body)
+      repeating: String(repeating),
+      interval: Number(interval) || 1,
+      maxCount: maxToGenerate,
+      // don't put `untilIso` here when `endDate` is falsy — we'll add it conditionally below
+    } as {
+      startDateIso: string;
+      repeating: string;
+      interval?: number;
+      maxCount?: number;
+      untilIso?: string;
+    };
+
+    if (endDate) {
+      // only attach untilIso when we actually have a string — this satisfies TS
+      (genOptions as any).untilIso = (endDate as string).slice(0, 10);
+    }
+
+    const occurrencesIso = generateOccurrencesIso(genOptions);
+
+    // Convert and push into dashboard.upcomingCharges, but avoid duplicate if any existing parentRecurringId + date exists
+    // FIX: check existing dates for this rule before pushing
+    const existingDates = new Set(
+      dashboard.upcomingCharges
+        .filter(
+          (c: any) =>
+            c.parentRecurringId &&
+            ruleIdStr &&
+            c.parentRecurringId.toString() === ruleIdStr
+        )
+        .map((c: any) =>
+          c.date instanceof Date
+            ? c.date.toISOString().slice(0, 10)
+            : new Date(c.date).toISOString().slice(0, 10)
+        )
+    );
+
+    const docsToInsert: any[] = [];
+    for (const iso of occurrencesIso) {
+      if (existingDates.has(iso)) continue;
+      docsToInsert.push({
+        date: new Date(iso + "T00:00:00Z"), // store as Date
+        company: company.trim(),
+        amount: Number(amount),
+        category,
+        recurring: true,
+        parentRecurringId: (rule as any)._id, // store the actual ObjectId
+        repeating,
+      });
+      existingDates.add(iso);
+    }
+
+    if (docsToInsert.length > 0) {
+      for (const doc of docsToInsert) dashboard.upcomingCharges.push(doc);
+      // mark lastGenerated as last created occurrence
+      const lastIso = docsToInsert[docsToInsert.length - 1].date
+        .toISOString()
+        .slice(0, 10);
+      (rule as any).lastGenerated = new Date(lastIso + "T00:00:00Z");
+      await rule.save();
+      await dashboard.save();
+    } else {
+      // nothing to insert, but still persist the rule
+      await rule.save();
+    }
+
     res.status(201).json({
-      message: "Upcoming charge added successfully",
-      upcomingCharge: addedUpcomingCharge,
+      message: "Recurring rule created and initial occurrences generated",
+      recurringRule: rule,
+      createdCount: docsToInsert.length,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
+    console.error("addNewCharge error:", error);
+    res
+      .status(500)
+      .json({ message: "Server error", error: (error as Error).message });
   }
 };
 
 // PUT upcoming charges
 // TODO maybe add a check if the upcoming charge exists? unless i want multiple charges, it could be that the user is charged multiple times, same day, same amount, same company?
-export const updateCharge = async (req: Request, res: Response) => {
+export const updateCharge = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
@@ -387,7 +584,7 @@ export const updateCharge = async (req: Request, res: Response) => {
       (c) =>
         c._id?.toString() !== id &&
         c.company === updateData.company &&
-        c.date === updateData.date &&
+        new Date(c.date).getTime() === new Date(updateData.date).getTime() &&
         c.category === updateData.category
     );
     if (duplicate) {
@@ -418,7 +615,7 @@ export const updateCharge = async (req: Request, res: Response) => {
 };
 
 // DELETE upcoming charge
-export const deleteCharge = async (req: Request, res: Response) => {
+export const deleteCharge = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
@@ -443,34 +640,47 @@ export const deleteCharge = async (req: Request, res: Response) => {
 };
 
 // delete transaction
-export const deleteTransaction = async (req: Request, res: Response) => {
+export const deleteTransaction = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
   const { id } = req.params;
+
   try {
     const dashboard = await Dashboard.findOne({ userId });
-
     if (!dashboard) return res.status(404).json({ message: "Not found" });
 
-    // filter by transaction id
-    dashboard.transactions = dashboard.transactions.filter(
-      (t) => t._id?.toString() !== id
+    const txIndex = dashboard.transactions.findIndex(
+      (t) => t._id?.toString() === id
     );
-    // filter out the transaction with the specific id from params
-    // save changes
+    if (txIndex === -1)
+      return res.status(404).json({ message: "Transaction not found" });
+
+    const tx = dashboard.transactions[txIndex];
+
+    const effect = tx.transactionType === "income" ? tx.amount : -tx.amount;
+
+    const account = dashboard.accounts.find((a) => a.type === tx.account);
+
+    if (account) {
+      account.balance -= effect;
+    }
+
+    dashboard.transactions.splice(txIndex, 1);
     await dashboard.save();
+
     res.status(200).json({
-      message: "Deleted successfully ",
+      message: "Deleted successfully",
       transactions: dashboard.transactions,
     });
   } catch (error) {
-    console.log(error);
+    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
 // add a new transaction
-export const addTransaction = async (req: Request, res: Response) => {
+export const addTransaction = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
@@ -548,48 +758,69 @@ export const addTransaction = async (req: Request, res: Response) => {
 
 // PUT ( EDIT ) transaction
 // TODO maybe add a check if the transaction exists? unless i want multiple transactions, it could be that the user is charged multiple times, same day, same amount, same company?
-export const updateTransaction = async (req: Request, res: Response) => {
+export const updateTransaction = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-  const { id } = req.params; // Transaction id
+  const { id } = req.params;
   const updateData = req.body;
-  if (!id) return res.status(400).json({ message: "Missing transaction id" });
+
   try {
     const dashboard = await Dashboard.findOne({ userId });
     if (!dashboard)
       return res.status(404).json({ message: "Dashboard not found" });
 
-    // Prevent exact duplicate (but maybe a transaction with the same data should be allowed )
-    const duplicate = dashboard.transactions.some((c) => {
-      if (c._id?.toString() === id) return false; // skip the transaction if same id
-      return (
-        c.company === updateData.company &&
-        c.date === updateData.date &&
-        c.transactionType === updateData.transactionType &&
-        c.category === updateData.category &&
-        c.amount === updateData.amount
-      );
-    });
-    if (duplicate) {
-      return res.status(400).json({
-        message: "A transaction with the same details already exists.",
-      });
-    }
-
-    const transactionIndex = dashboard.transactions.findIndex(
-      (c) => c._id?.toString() === id
+    const txIndex = dashboard.transactions.findIndex(
+      (t) => t._id?.toString() === id
     );
-    if (transactionIndex === -1)
+    if (txIndex === -1)
       return res.status(404).json({ message: "Transaction not found" });
 
-    // Update the transaction
-    dashboard.transactions[transactionIndex] = { _id: id, ...updateData };
+    const oldTx = dashboard.transactions[txIndex];
+
+    // Undo old transaction effect
+    const oldEffect =
+      oldTx.transactionType === "income" ? oldTx.amount : -oldTx.amount;
+
+    const oldAccount = dashboard.accounts.find((a) => a.type === oldTx.account);
+
+    if (oldAccount) {
+      oldAccount.balance -= oldEffect;
+    }
+
+    // Apply new transaction effect
+    const newAmount = Number(updateData.amount);
+    const newEffect =
+      updateData.transactionType === "income" ? newAmount : -newAmount;
+
+    let newAccount = dashboard.accounts.find(
+      (a) => a.type === updateData.account
+    );
+
+    if (!newAccount) {
+      newAccount = {
+        userId,
+        type: updateData.account,
+        balance: 0,
+        createdAt: new Date(),
+      };
+      dashboard.accounts.push(newAccount as any);
+    }
+
+    newAccount.balance += newEffect;
+
+    // Update transaction safely
+    Object.assign(oldTx, {
+      ...updateData,
+      amount: newAmount,
+      date: new Date(updateData.date),
+    });
+
     await dashboard.save();
 
     res.status(200).json({
-      message: "Updated successfully",
-      updatedTransaction: dashboard.transactions[transactionIndex],
+      message: "Transaction updated successfully",
+      updatedTransaction: oldTx,
     });
   } catch (error) {
     console.error(error);
@@ -601,7 +832,7 @@ export const updateTransaction = async (req: Request, res: Response) => {
 // ! overkill here, if i had millions of records it might be worth it
 // but since i'm fetching the dashboard on the frontend, i can do the calculations there.
 // if i do aggregations, that means a second query, extra DB work, extra latency
-// export const getIncomeSumary = async (req: AuthRequest, res: Response) => {
+// export const getIncomeSumary = async (req: AuthAuthRequest, res: Response) => {
 //   const userId = getUserId(req);
 //   if (!userId) {
 //     return res.status(401).json({ message: "Unauthorized" });
