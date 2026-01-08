@@ -5,6 +5,7 @@ import financeRoutes from "./routes/dashboardRoutes";
 import userRoutes from "./routes/userRoutes";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
+import contactRoutes from "./routes/contactRoutes";
 // check if jwt secret exists
 if (!process.env.JWT_SECRET) {
   throw new Error("FATAL ERROR: JWT_SECRET is not defined.");
@@ -54,5 +55,5 @@ app.get("/api/health", (req, res) => {
 
 app.use("/api", userRoutes);
 app.use("/api", financeRoutes);
-
+app.use("/api", contactRoutes);
 export default app;

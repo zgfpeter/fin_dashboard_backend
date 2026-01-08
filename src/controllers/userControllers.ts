@@ -118,7 +118,7 @@ export const userLogin = async (req: Request, res: Response) => {
 
 // change user details
 
-export const changeUserDetails = async (req: Request, res: Response) => {
+export const changeUserDetails = async (req: AuthRequest, res: Response) => {
   console.log("User is changing details...");
   const { username, currency, avatar } = req.body;
   // get the user id from the middleware

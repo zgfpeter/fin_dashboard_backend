@@ -6,10 +6,16 @@ import RecurringCharge from "../models/RecurringCharge";
 import { generateOccurrencesIso } from "../utils/recurrence";
 
 import mongoose from "mongoose";
+
+// Request comes from express and has the standart express request properties: body, params, query etc
+// AuthRequest is my custom request type that extends Request with a user property injected by my auth middleware
+// I should use Request for routes that don't need authentication, like userSignUp and UserLogin, but AuthRequest for routes that do need authentication, so that they are protected
+
 // Helper function to safely get User ID
 const getUserId = (req: AuthRequest) => {
   return req.user?.id || req.user?._id;
 };
+
 export const getDashboard = async (req: AuthRequest, res: Response) => {
   try {
     // find the logged-in user's id. ( middleware sets req.user)
@@ -198,7 +204,11 @@ export const addNewDebt = async (req: AuthRequest, res: Response) => {
     const dashboard = await Dashboard.findOne({ userId });
     if (!dashboard) return res.status(404).json({ message: "Not found" });
     // insert the new Debt into the debt array
-    dashboard.debts.push(newDebt);
+    // FIX: add _id so the pushed object satisfies ITransaction-like interfaces
+    dashboard.debts.push({
+      _id: new mongoose.Types.ObjectId(),
+      ...newDebt,
+    });
     await dashboard.save(); // save changes
     const addedDebt = dashboard.debts[dashboard.debts.length - 1]; // the new Debt will be the last one, so i can send it back
     res.status(201).json({
@@ -317,7 +327,11 @@ export const addNewGoal = async (req: AuthRequest, res: Response) => {
     const dashboard = await Dashboard.findOne({ userId });
     if (!dashboard) return res.status(404).json({ message: "Not found" });
     // insert the new goal into the goals array
-    dashboard.goals.push(newGoal);
+    // FIX: add _id for typing consistency
+    dashboard.goals.push({
+      _id: new mongoose.Types.ObjectId(),
+      ...newGoal,
+    });
     await dashboard.save(); // save changes
     const addedGoal = dashboard.goals[dashboard.goals.length - 1]; // the new goal will be the last one, so i can send it back
     res.status(201).json({
@@ -472,6 +486,7 @@ export const addNewCharge = async (req: AuthRequest, res: Response) => {
     // NON-REPEATING (single upcoming charge)
     if (!repeating || repeating === "noRepeat") {
       const upcoming = {
+        _id: new mongoose.Types.ObjectId(), // FIX: ensure _id to satisfy subdocument typing
         date: new Date(date),
         company: company.trim(),
         amount: Number(amount),
@@ -533,7 +548,11 @@ export const addNewCharge = async (req: AuthRequest, res: Response) => {
 
     // SAFETY: normalize returned value to a single document (some TS overloads make `create` look like it can return arrays)
     const rule = Array.isArray(ruleRaw) ? ruleRaw[0] : ruleRaw;
-
+    if (!rule) {
+      return res
+        .status(500)
+        .json({ message: "Failed to create recurring rule" });
+    }
     // get rule id string once and use it for all comparisons (avoids TS complaining about _id on unions)
     const ruleIdStr = (rule as any)?._id
       ? (rule as any)._id.toString()
@@ -601,6 +620,7 @@ export const addNewCharge = async (req: AuthRequest, res: Response) => {
     for (const iso of occurrencesIso) {
       if (existingDates.has(iso)) continue;
       docsToInsert.push({
+        _id: new mongoose.Types.ObjectId(), // FIX: ensure _id present for typing
         date: new Date(iso + "T00:00:00Z"), // store as Date
         company: company.trim(),
         amount: Number(amount),
@@ -739,6 +759,11 @@ export const deleteTransaction = async (req: AuthRequest, res: Response) => {
 
     const tx = dashboard.transactions[txIndex];
 
+    if (!tx) {
+      return res
+        .status(404)
+        .json({ message: "Could not find transaction with that index" });
+    }
     const effect = tx.transactionType === "income" ? tx.amount : -tx.amount;
 
     const account = dashboard.accounts.find((a) => a.type === tx.account);
@@ -788,7 +813,9 @@ export const addTransaction = async (req: AuthRequest, res: Response) => {
   }
 
   // 3️Normalize transaction
+  // FIX: add _id so the pushed object satisfies ITransaction (TypeScript)
   const newTransaction = {
+    _id: new mongoose.Types.ObjectId(),
     date: new Date(date),
     company: company.trim(),
     amount: Number(amount),
@@ -858,7 +885,11 @@ export const updateTransaction = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Transaction not found" });
 
     const oldTx = dashboard.transactions[txIndex];
-
+    if (!oldTx) {
+      return res
+        .status(500)
+        .json({ message: "Failed to find old trannsaction" });
+    }
     // Undo old transaction effect
     const oldEffect =
       oldTx.transactionType === "income" ? oldTx.amount : -oldTx.amount;
