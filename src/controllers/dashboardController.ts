@@ -43,7 +43,46 @@ export const getDashboard = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    res.status(200).json(dashboard);
+    // TODO FIND A BETTER WAY TO RETURN SORTED ARRAYS
+    const out = dashboard.toObject();
+
+    if (Array.isArray(out.transactions)) {
+      out.transactions = out.transactions
+        .slice()
+        .sort(
+          (a: any, b: any) =>
+            new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+    }
+
+    if (Array.isArray(out.upcomingCharges)) {
+      out.upcomingCharges = out.upcomingCharges
+        .slice()
+        .sort(
+          (a: any, b: any) =>
+            new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+    }
+
+    if (Array.isArray(out.debts)) {
+      out.debts = out.debts
+        .slice()
+        .sort(
+          (a: any, b: any) =>
+            new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+        );
+    }
+
+    if (Array.isArray(out.goals)) {
+      out.goals = out.goals
+        .slice()
+        .sort(
+          (a: any, b: any) =>
+            new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime()
+        );
+    }
+
+    res.status(200).json(out);
   } catch (error) {
     console.log("Dashboard error: ", error);
     res.status(500).json({ message: "Server error" });
@@ -99,7 +138,13 @@ export const getTransactions = async (req: AuthRequest, res: Response) => {
     const dashboard = await Dashboard.findOne({ userId }, "transactions");
 
     if (!dashboard) return res.status(404).json({ message: "Not found" });
-    res.json(dashboard.transactions);
+
+    // sort by date
+    const sorted = [...dashboard.transactions].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    res.json(sorted);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
@@ -112,7 +157,13 @@ export const getUpcomingCharges = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
     const dashboard = await Dashboard.findOne({ userId }, "upcomingCharges");
     if (!dashboard) return res.status(404).json({ message: "Not found" });
-    res.json(dashboard.upcomingCharges);
+
+    // sort by date
+    const sorted = [...dashboard.upcomingCharges].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+
+    res.json(sorted);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
@@ -125,7 +176,11 @@ export const getDebts = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
     const dashboard = await Dashboard.findOne({ userId }, "debts");
     if (!dashboard) return res.status(404).json({ message: "Not found" });
-    res.json(dashboard.debts);
+    // sort by date
+    const sorted = [...dashboard.debts].sort(
+      (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+    );
+    res.json(sorted);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
@@ -186,7 +241,13 @@ export const updateDebt = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Debt not found" });
 
     // Update the debt
-    dashboard.debts[debtIndex] = { _id: id, ...updateData };
+    // Update the debt
+    dashboard.debts[debtIndex] = {
+      _id: id,
+      ...updateData,
+      dueDate: new Date(updateData.dueDate),
+    };
+
     await dashboard.save();
 
     res.status(200).json({
@@ -231,11 +292,19 @@ export const getGoals = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
     const dashboard = await Dashboard.findOne({ userId }, "goals");
     if (!dashboard) return res.status(404).json({ message: "Not found" });
-    res.json(dashboard.goals);
+
+    // sort by target date
+    const sorted = [...dashboard.goals].sort(
+      (a, b) =>
+        new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime()
+    );
+
+    res.json(sorted);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
 };
+
 //POST a new goal
 export const addNewGoal = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
@@ -293,7 +362,13 @@ export const updateGoal = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Goal not found" });
 
     // Update the goal
-    dashboard.goals[goalIndex] = { _id: id, ...updateData };
+
+    dashboard.goals[goalIndex] = {
+      _id: id,
+      ...updateData,
+      targetDate: new Date(updateData.targetDate),
+    };
+
     await dashboard.save();
 
     res.status(200).json({
@@ -601,7 +676,13 @@ export const updateCharge = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Upcoming charge not found" });
 
     // Update the charge
-    dashboard.upcomingCharges[chargeIndex] = { _id: id, ...updateData };
+    // normalize on update
+    dashboard.upcomingCharges[chargeIndex] = {
+      _id: id,
+      ...updateData,
+      date: new Date(updateData.date),
+    };
+
     await dashboard.save();
 
     res.status(200).json({
