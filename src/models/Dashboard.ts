@@ -24,7 +24,7 @@ export interface IAccount {
 }
 
 export interface ITransaction {
-  _id: mongoose.Types.ObjectId;
+  _id?: mongoose.Types.ObjectId;
   date: Date;
   company: string;
   amount: number;
