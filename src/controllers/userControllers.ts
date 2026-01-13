@@ -154,3 +154,23 @@ export const changeUserDetails = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// delete user account
+export const deleteUserAccount = async (req: AuthRequest, res: Response) => {
+  console.log("User requested account deletion...");
+  const { username, currency, avatar } = req.body;
+  // get the user id from the middleware
+  const userId = getUserId(req);
+
+  try {
+    const user = await User.findOne({ username });
+
+    res.status(200).json({
+      message:
+        "We received your request and are working on it, this might take a few days.",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};

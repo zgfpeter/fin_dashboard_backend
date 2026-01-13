@@ -17,8 +17,8 @@ const loginLimiter = rateLimit({
   legacyHeaders: false, // disable old headers
 });
 
-// update user details
-//router.use(authenticateToken);
+// contact route
+router.use(authenticateToken);
 router.post("/contact", contact);
 
 export default router;

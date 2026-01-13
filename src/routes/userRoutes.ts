@@ -3,6 +3,7 @@ import rateLimit from "express-rate-limit";
 import { authenticateToken } from "../middleware/authMiddleware";
 import {
   changeUserDetails,
+  deleteUserAccount,
   userLogin,
   userSignUp,
 } from "../controllers/userControllers";
@@ -31,5 +32,5 @@ router.post("/users/signup", loginLimiter, userSignUp);
 // update user details
 router.use(authenticateToken);
 router.patch("/users/update", changeUserDetails);
-
+router.delete("/users/:id", deleteUserAccount);
 export default router;

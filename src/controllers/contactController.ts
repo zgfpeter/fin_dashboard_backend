@@ -1,29 +1,48 @@
 import type { Request, Response } from "express";
 import { AuthRequest } from "../middleware/authMiddleware";
+import ContactForm from "../models/ContactForm";
 
-const getUserId = (req: AuthRequest) => {
-  return req.user?.id || req.user?._id;
-};
+export const contact = async (req: AuthRequest, res: Response) => {
+  const { reason, title, message, username, email } = req.body;
 
-// contact form
+  console.log(req.body);
+  // ensure user is authenticated
+  if (!req.user) {
+    return res.status(401).json({
+      message: "Authentication required",
+    });
+  }
 
-export const contact = async (req: Request, res: Response) => {
-  console.log("User is contacting me...");
-  const { reason, title, email, body } = req.body;
-  // get the user id from the middleware
-  const userId = getUserId(req);
+  // server-trusted identity
 
-  console.log("Contact reason: ", reason);
-  console.log("Title: ", title);
-  console.log("Email: ", email);
-  console.log("Body: ", body);
+  //console.log(username);
+
+  // basic validation
+  if (!title || !message) {
+    return res.status(400).json({
+      message: "Title and message are required",
+    });
+  }
 
   try {
-    res.status(200).json({
-      message: "User message received",
+    await ContactForm.create({
+      reason,
+      title,
+      email,
+      username, // maybe useful?
+      message,
+    });
+
+    console.log("From contact form :", reason, title, email, username, message);
+
+    // 200 - ok, 201 - resource created
+    return res.status(201).json({
+      message: "Message received",
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
+    console.error("Contact form error:", error);
+    return res.status(500).json({
+      message: "Server error",
+    });
   }
 };
