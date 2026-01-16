@@ -1,6 +1,6 @@
 // recurringCharge.ts
 import mongoose, { Schema, Document, HydratedDocument } from "mongoose";
-import { ExpenseCategory } from "./Dashboard"; // re-use type from dashboard
+import { ExpenseCategory } from "../types/finance";
 
 // ---------- TYPES ----------
 export interface IRecurringCharge extends Document {

@@ -7,19 +7,38 @@ import cors from "cors";
 import rateLimit from "express-rate-limit";
 import contactRoutes from "./routes/contactRoutes";
 import importExportRoutes from "./routes/importExportRoutes";
+
 // check if jwt secret exists
 if (!process.env.JWT_SECRET) {
   throw new Error("FATAL ERROR: JWT_SECRET is not defined.");
 }
 
 //const PORT = process.env.PORT || 4000;
+
+const app = express();
+
+/*
+  IMPORTANT:
+  App is deployed behind a proxy (Vercel / Railway / etc).
+  Without this, rate limiting per IP will NOT work correctly.
+*/
+app.set("trust proxy", 1);
+
+// health check (should not be rate limited)
+app.get("/api/health", (req, res) => {
+  res.json({ status: "Backend is running!" });
+});
+
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 100, // 100 requests per minute per IP
   message: { message: "Too many requests. Slow down." },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
-const app = express();
+
 app.use(globalLimiter);
+
 app.use(
   cors({
     origin: function (origin, callback) {
@@ -43,19 +62,18 @@ app.use(
     credentials: true,
   })
 );
+
 app.use(express.json());
 
 connectDB();
+
 // ! app.use not app.get here
 // ORDER MATTERS:
 // if it was financeRoutes first,
 // express sees url starts with /api, matches the first router: financeRoutes, enters financeRoutes, the first line is router.use(authenticateToken), middleware runs, sees no token yet because user hasn't logged in or registered, throws 401 :(, request dies here, never reaches userRoutes.
-app.get("/api/health", (req, res) => {
-  res.json({ status: "Backend is running!" });
-});
-
 app.use("/api", userRoutes);
 app.use("/api", financeRoutes);
 app.use("/api", contactRoutes);
 app.use("/api", importExportRoutes);
+
 export default app;

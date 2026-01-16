@@ -1,11 +1,16 @@
-// get the whole single data object ( in my database i have one object with all the data )
 import type { Request, Response } from "express";
-import Dashboard, { AccountType } from "../models/Dashboard";
+import mongoose from "mongoose";
 import { AuthRequest } from "../middleware/authMiddleware";
-import RecurringCharge from "../models/RecurringCharge";
 import { generateOccurrencesIso } from "../utils/recurrence";
 
-import mongoose from "mongoose";
+// Import your separate models
+import Dashboard, { IAccount } from "../models/Dashboard";
+import { AccountType } from "../types/finance";
+import Transaction from "../models/Transaction";
+import UpcomingCharge from "../models/UpcomingCharge";
+import Debt from "../models/Debt";
+import Goal from "../models/Goal";
+import RecurringCharge from "../models/RecurringCharge";
 
 // Request comes from express and has the standart express request properties: body, params, query etc
 // AuthRequest is my custom request type that extends Request with a user property injected by my auth middleware
@@ -25,7 +30,7 @@ export const getDashboard = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: "Invalid User Token" });
     }
 
-    // get the dashboard for this specific user
+    // get the dashboard for this specific user (Overview + Accounts)
     let dashboard = await Dashboard.findOne({ userId });
 
     // if no dashboard exists, create it
@@ -42,51 +47,27 @@ export const getDashboard = async (req: AuthRequest, res: Response) => {
             balance: 0,
           },
         ],
-        transactions: [],
-        upcomingCharges: [],
-        debts: [],
-        goals: [],
+        // No longer need empty arrays here, they live in their own collections
       });
     }
 
-    // TODO FIND A BETTER WAY TO RETURN SORTED ARRAYS
-    const out = dashboard.toObject();
+    // Fetch related data in parallel from separate collections
+    // TODO FIND A BETTER WAY TO RETURN SORTED ARRAYS -> Solved: Database sorting is much more efficient!
+    const [transactions, upcomingCharges, debts, goals] = await Promise.all([
+      Transaction.find({ userId }).sort({ date: 1 }),
+      UpcomingCharge.find({ userId }).sort({ date: 1 }),
+      Debt.find({ userId }).sort({ dueDate: 1 }),
+      Goal.find({ userId }).sort({ targetDate: 1 }),
+    ]);
 
-    if (Array.isArray(out.transactions)) {
-      out.transactions = out.transactions
-        .slice()
-        .sort(
-          (a: any, b: any) =>
-            new Date(a.date).getTime() - new Date(b.date).getTime()
-        );
-    }
-
-    if (Array.isArray(out.upcomingCharges)) {
-      out.upcomingCharges = out.upcomingCharges
-        .slice()
-        .sort(
-          (a: any, b: any) =>
-            new Date(a.date).getTime() - new Date(b.date).getTime()
-        );
-    }
-
-    if (Array.isArray(out.debts)) {
-      out.debts = out.debts
-        .slice()
-        .sort(
-          (a: any, b: any) =>
-            new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
-        );
-    }
-
-    if (Array.isArray(out.goals)) {
-      out.goals = out.goals
-        .slice()
-        .sort(
-          (a: any, b: any) =>
-            new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime()
-        );
-    }
+    // Assemble the full object for the frontend
+    const out = {
+      ...dashboard.toObject(),
+      transactions,
+      upcomingCharges,
+      debts,
+      goals,
+    };
 
     res.status(200).json(out);
   } catch (error) {
@@ -109,7 +90,7 @@ export const updateOverview = async (req: AuthRequest, res: Response) => {
     dashboard.accounts = accounts.map((acc: any) => {
       // find if this account already exists
       const existingAcc = dashboard.accounts.find(
-        (a) => a._id?.toString() === acc._id
+        (a: IAccount) => a._id?.toString() === acc._id
       );
 
       if (existingAcc) {
@@ -138,19 +119,13 @@ export const updateOverview = async (req: AuthRequest, res: Response) => {
 // get transactions
 export const getTransactions = async (req: AuthRequest, res: Response) => {
   try {
-    // the second argument "upcomingCharges" tells Mongoos to only return the transactions field
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
-    const dashboard = await Dashboard.findOne({ userId }, "transactions");
 
-    if (!dashboard) return res.status(404).json({ message: "Not found" });
+    // sort by date (Database sort is faster than JS sort)
+    const transactions = await Transaction.find({ userId }).sort({ date: 1 });
 
-    // sort by date
-    const sorted = [...dashboard.transactions].sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
-
-    res.json(sorted);
+    res.json(transactions);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
@@ -161,15 +136,11 @@ export const getUpcomingCharges = async (req: AuthRequest, res: Response) => {
   try {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
-    const dashboard = await Dashboard.findOne({ userId }, "upcomingCharges");
-    if (!dashboard) return res.status(404).json({ message: "Not found" });
 
-    // sort by date
-    const sorted = [...dashboard.upcomingCharges].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
+    // sort by date descending
+    const charges = await UpcomingCharge.find({ userId }).sort({ date: -1 });
 
-    res.json(sorted);
+    res.json(charges);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
@@ -180,13 +151,10 @@ export const getDebts = async (req: AuthRequest, res: Response) => {
   try {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
-    const dashboard = await Dashboard.findOne({ userId }, "debts");
-    if (!dashboard) return res.status(404).json({ message: "Not found" });
+
     // sort by date
-    const sorted = [...dashboard.debts].sort(
-      (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
-    );
-    res.json(sorted);
+    const debts = await Debt.find({ userId }).sort({ dueDate: 1 });
+    res.json(debts);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
@@ -197,20 +165,15 @@ export const addNewDebt = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-  const newDebt = req.body;
-  console.log("New Debt: ", newDebt);
+  const newDebtData = req.body;
+  console.log("New Debt: ", newDebtData);
   try {
-    // get the dashboard ( the object containing all the data, including the debts array)
-    const dashboard = await Dashboard.findOne({ userId });
-    if (!dashboard) return res.status(404).json({ message: "Not found" });
-    // insert the new Debt into the debt array
-    // FIX: add _id so the pushed object satisfies ITransaction-like interfaces
-    dashboard.debts.push({
-      _id: new mongoose.Types.ObjectId(),
-      ...newDebt,
+    // FIX: create directly in Debt collection
+    const addedDebt = await Debt.create({
+      userId, // Link to user
+      ...newDebtData,
     });
-    await dashboard.save(); // save changes
-    const addedDebt = dashboard.debts[dashboard.debts.length - 1]; // the new Debt will be the last one, so i can send it back
+
     res.status(201).json({
       message: "Debt added successfully",
       addedDebt: addedDebt,
@@ -229,40 +192,36 @@ export const updateDebt = async (req: AuthRequest, res: Response) => {
   const updateData = req.body;
   if (!id) return res.status(400).json({ message: "Missing debt id" });
   try {
-    const dashboard = await Dashboard.findOne({ userId });
-    if (!dashboard)
-      return res.status(404).json({ message: "Dashboard not found" });
-
-    // Prevent exact duplicate (but maybe a debt with the same data should be allowed )
-    const duplicate = dashboard.debts.some((c) => {
-      if (c._id.toString() === id) return false; // skip the debt if same id
-      return (
-        c.company === updateData.company && c.dueDate === updateData.dueDate
-      );
+    // Prevent exact duplicate logic
+    const duplicate = await Debt.findOne({
+      userId,
+      _id: { $ne: id },
+      company: updateData.company,
+      dueDate: updateData.dueDate,
     });
+
     if (duplicate) {
       return res.status(400).json({
         message: "A debt with the same details already exists.",
       });
     }
 
-    const debtIndex = dashboard.debts.findIndex((c) => c._id.toString() === id);
-    if (debtIndex === -1)
+    // Update the debt directly in collection
+    const updatedDebt = await Debt.findOneAndUpdate(
+      { _id: id, userId }, // ensure user owns it
+      {
+        ...updateData,
+        dueDate: new Date(updateData.dueDate),
+      },
+      { new: true }
+    );
+
+    if (!updatedDebt)
       return res.status(404).json({ message: "Debt not found" });
-
-    // Update the debt
-    // Update the debt
-    dashboard.debts[debtIndex] = {
-      _id: id,
-      ...updateData,
-      dueDate: new Date(updateData.dueDate),
-    };
-
-    await dashboard.save();
 
     res.status(200).json({
       message: "Updated successfully",
-      updatedGoal: dashboard.debts[debtIndex],
+      updatedGoal: updatedDebt, // keeping field name consistent with your frontend expectation?
     });
   } catch (error) {
     console.error(error);
@@ -277,17 +236,16 @@ export const deleteDebt = async (req: AuthRequest, res: Response) => {
 
   const { id } = req.params;
   try {
-    const dashboard = await Dashboard.findOne({ userId });
-    if (!dashboard) return res.status(404).json({ message: "Not found" });
+    const result = await Debt.findOneAndDelete({ _id: id, userId });
 
-    dashboard.debts = dashboard.debts.filter(
-      (goal) => goal._id.toString() !== id
-    );
+    if (!result) return res.status(404).json({ message: "Not found" });
 
-    await dashboard.save();
+    // Return remaining debts for frontend state update if needed
+    const remainingDebts = await Debt.find({ userId });
+
     res.status(200).json({
       message: "Deleted successfully",
-      debts: dashboard.debts,
+      debts: remainingDebts,
     });
   } catch (error) {
     console.log(error);
@@ -300,16 +258,11 @@ export const getGoals = async (req: AuthRequest, res: Response) => {
   try {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
-    const dashboard = await Dashboard.findOne({ userId }, "goals");
-    if (!dashboard) return res.status(404).json({ message: "Not found" });
 
     // sort by target date
-    const sorted = [...dashboard.goals].sort(
-      (a, b) =>
-        new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime()
-    );
+    const goals = await Goal.find({ userId }).sort({ targetDate: 1 });
 
-    res.json(sorted);
+    res.json(goals);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
@@ -320,20 +273,15 @@ export const addNewGoal = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-  const newGoal = req.body;
-  console.log("New goal: ", newGoal);
+  const newGoalData = req.body;
+  console.log("New goal: ", newGoalData);
   try {
-    // get the dashboard ( the object containing all the data, including the goals array)
-    const dashboard = await Dashboard.findOne({ userId });
-    if (!dashboard) return res.status(404).json({ message: "Not found" });
-    // insert the new goal into the goals array
-    // FIX: add _id for typing consistency
-    dashboard.goals.push({
-      _id: new mongoose.Types.ObjectId(),
-      ...newGoal,
+    // FIX: create directly in Goal collection
+    const addedGoal = await Goal.create({
+      userId,
+      ...newGoalData,
     });
-    await dashboard.save(); // save changes
-    const addedGoal = dashboard.goals[dashboard.goals.length - 1]; // the new goal will be the last one, so i can send it back
+
     res.status(201).json({
       message: "Goal added successfully",
       addedGoal: addedGoal,
@@ -352,42 +300,36 @@ export const updateGoal = async (req: AuthRequest, res: Response) => {
   const updateData = req.body;
   if (!id) return res.status(400).json({ message: "Missing goal id" });
   try {
-    const dashboard = await Dashboard.findOne({ userId });
-    if (!dashboard)
-      return res.status(404).json({ message: "Dashboard not found" });
-
-    // Prevent exact duplicate (but maybe a goal with the same data should be allowed )
-    const duplicate = dashboard.goals.some((c) => {
-      if (c._id?.toString() === id) return false; // skip the goal if same id
-      return (
-        c.title === updateData.title && c.targetDate === updateData.targetDate
-      );
+    // Prevent exact duplicate
+    const duplicate = await Goal.findOne({
+      userId,
+      _id: { $ne: id },
+      title: updateData.title,
+      targetDate: updateData.targetDate,
     });
+
     if (duplicate) {
       return res.status(400).json({
         message: "A goal with the same details already exists.",
       });
     }
 
-    const goalIndex = dashboard.goals.findIndex(
-      (c) => c._id?.toString() === id
-    );
-    if (goalIndex === -1)
-      return res.status(404).json({ message: "Goal not found" });
-
     // Update the goal
+    const updatedGoal = await Goal.findOneAndUpdate(
+      { _id: id, userId },
+      {
+        ...updateData,
+        targetDate: new Date(updateData.targetDate),
+      },
+      { new: true }
+    );
 
-    dashboard.goals[goalIndex] = {
-      _id: id,
-      ...updateData,
-      targetDate: new Date(updateData.targetDate),
-    };
-
-    await dashboard.save();
+    if (!updatedGoal)
+      return res.status(404).json({ message: "Goal not found" });
 
     res.status(200).json({
       message: "Updated successfully",
-      updatedGoal: dashboard.goals[goalIndex],
+      updatedGoal: updatedGoal,
     });
   } catch (error) {
     console.error(error);
@@ -402,17 +344,14 @@ export const deleteGoal = async (req: AuthRequest, res: Response) => {
 
   const { id } = req.params;
   try {
-    const dashboard = await Dashboard.findOne({ userId });
-    if (!dashboard) return res.status(404).json({ message: "Not found" });
+    const result = await Goal.findOneAndDelete({ _id: id, userId });
+    if (!result) return res.status(404).json({ message: "Not found" });
 
-    dashboard.goals = dashboard.goals.filter(
-      (goal) => goal._id?.toString() !== id
-    );
+    const remainingGoals = await Goal.find({ userId });
 
-    await dashboard.save();
     res.status(200).json({
       message: "Deleted successfully",
-      goals: dashboard.goals,
+      goals: remainingGoals,
     });
   } catch (error) {
     console.log(error);
@@ -420,25 +359,7 @@ export const deleteGoal = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// // get income
-// export const getIncome = async (req: AuthRequest, res: Response) => {
-//   try {
-//     const userId = getUserId(req);
-//     if (!userId) return res.status(401).json({ message: "Unauthorized" });
-//     const dashboard = await Dashboard.findOne({ userId }, "income");
-//     if (!dashboard) return res.status(404).json({ message: "Not found" });
-//     res.json(dashboard.income);
-//   } catch (error) {
-//     res.status(500).json({ message: "Server error" });
-//   }
-// };
-
 //POST a new upcoming charge
-// controllers/dashboardController.ts (snippet)
-
-// POST a new upcoming charge
-// POST a new upcoming charge
-// POST a new upcoming charge
 export const addNewCharge = async (req: AuthRequest, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
@@ -480,26 +401,15 @@ export const addNewCharge = async (req: AuthRequest, res: Response) => {
   }
 
   try {
-    const dashboard = await Dashboard.findOne({ userId });
-    if (!dashboard) return res.status(404).json({ message: "Not found" });
-
     // NON-REPEATING (single upcoming charge)
     if (!repeating || repeating === "noRepeat") {
-      const upcoming = {
-        _id: new mongoose.Types.ObjectId(), // FIX: ensure _id to satisfy subdocument typing
-        date: new Date(date),
+      // FIX: check duplicate via DB query
+      const duplicate = await UpcomingCharge.findOne({
+        userId,
         company: company.trim(),
-        amount: Number(amount),
-        category,
-        recurring: false,
-      };
-      // FIX: avoid exact duplicates (company + date)
-      const duplicate = dashboard.upcomingCharges.some(
-        (c: any) =>
-          c.company === upcoming.company &&
-          new Date(c.date).toISOString().slice(0, 10) ===
-            new Date(upcoming.date).toISOString().slice(0, 10)
-      );
+        date: new Date(date),
+      });
+
       if (duplicate) {
         return res.status(400).json({
           message:
@@ -507,10 +417,15 @@ export const addNewCharge = async (req: AuthRequest, res: Response) => {
         });
       }
 
-      dashboard.upcomingCharges.push(upcoming);
-      await dashboard.save();
-      const addedUpcomingCharge =
-        dashboard.upcomingCharges[dashboard.upcomingCharges.length - 1];
+      const addedUpcomingCharge = await UpcomingCharge.create({
+        userId,
+        date: new Date(date),
+        company: company.trim(),
+        amount: Number(amount),
+        category,
+        recurring: false,
+      });
+
       return res.status(201).json({
         message: "Upcoming charge added successfully",
         upcomingCharge: addedUpcomingCharge,
@@ -540,33 +455,28 @@ export const addNewCharge = async (req: AuthRequest, res: Response) => {
       ruleData.count = Number(count);
     }
 
-    // DO NOT set lastGenerated at creation time
-    // it should either be omitted or set later by the runner
-
     // create the rule
     const ruleRaw = await RecurringCharge.create(ruleData);
 
-    // SAFETY: normalize returned value to a single document (some TS overloads make `create` look like it can return arrays)
+    // SAFETY: normalize returned value to a single document
     const rule = Array.isArray(ruleRaw) ? ruleRaw[0] : ruleRaw;
     if (!rule) {
       return res
         .status(500)
         .json({ message: "Failed to create recurring rule" });
     }
-    // get rule id string once and use it for all comparisons (avoids TS complaining about _id on unions)
-    const ruleIdStr = (rule as any)?._id
-      ? (rule as any)._id.toString()
-      : undefined;
+
+    // get rule id string
+    const ruleIdStr = (rule as any)?._id.toString();
 
     // Decide how many occurrences to generate initially
-    const DEFAULT_GEN = 12; // e.g. next 12 occurrences (1 year for monthly)
-    // FIX: compute how many already exist for this user+rule (should be 0 right after creation, but defensive)
-    const alreadyGenerated = dashboard.upcomingCharges.filter(
-      (c: any) =>
-        c.parentRecurringId &&
-        ruleIdStr &&
-        c.parentRecurringId.toString() === ruleIdStr
-    ).length;
+    const DEFAULT_GEN = 12; // e.g. next 12 occurrences
+
+    // FIX: count how many generated via DB query
+    const alreadyGenerated = await UpcomingCharge.countDocuments({
+      userId,
+      parentRecurringId: rule._id,
+    });
 
     const maxToGenerate = Math.min(
       count ? Math.max(0, Number(count) - alreadyGenerated) : DEFAULT_GEN,
@@ -574,16 +484,11 @@ export const addNewCharge = async (req: AuthRequest, res: Response) => {
     ); // hard cap 36
 
     // generate ISO occurrences
-    // generate ISO occurrences
-    // generate ISO occurrences
-    // build the options object but only add untilIso if endDate exists — avoids `string | undefined` mismatch
     const genOptions = {
       startDateIso: (date as string).slice(0, 10), // ensure YYYY-MM-DD
-      // make sure repeating is a plain string (it may be typed as `any` from req.body)
       repeating: String(repeating),
       interval: Number(interval) || 1,
       maxCount: maxToGenerate,
-      // don't put `untilIso` here when `endDate` is falsy — we'll add it conditionally below
     } as {
       startDateIso: string;
       repeating: string;
@@ -593,56 +498,48 @@ export const addNewCharge = async (req: AuthRequest, res: Response) => {
     };
 
     if (endDate) {
-      // only attach untilIso when we actually have a string — this satisfies TS
       (genOptions as any).untilIso = (endDate as string).slice(0, 10);
     }
 
     const occurrencesIso = generateOccurrencesIso(genOptions);
 
-    // Convert and push into dashboard.upcomingCharges, but avoid duplicate if any existing parentRecurringId + date exists
-    // FIX: check existing dates for this rule before pushing
+    // FIX: Check existing dates in DB to avoid dupes
+    const existingCharges = await UpcomingCharge.find({
+      userId,
+      parentRecurringId: rule._id,
+    });
+
     const existingDates = new Set(
-      dashboard.upcomingCharges
-        .filter(
-          (c: any) =>
-            c.parentRecurringId &&
-            ruleIdStr &&
-            c.parentRecurringId.toString() === ruleIdStr
-        )
-        .map((c: any) =>
-          c.date instanceof Date
-            ? c.date.toISOString().slice(0, 10)
-            : new Date(c.date).toISOString().slice(0, 10)
-        )
+      existingCharges.map((c) => c.date.toISOString().slice(0, 10))
     );
 
     const docsToInsert: any[] = [];
     for (const iso of occurrencesIso) {
       if (existingDates.has(iso)) continue;
       docsToInsert.push({
-        _id: new mongoose.Types.ObjectId(), // FIX: ensure _id present for typing
-        date: new Date(iso + "T00:00:00Z"), // store as Date
+        userId, // IMPORTANT: Link to user
+        date: new Date(iso + "T00:00:00Z"),
         company: company.trim(),
         amount: Number(amount),
         category,
         recurring: true,
-        parentRecurringId: (rule as any)._id, // store the actual ObjectId
+        parentRecurringId: (rule as any)._id,
         repeating,
       });
       existingDates.add(iso);
     }
 
     if (docsToInsert.length > 0) {
-      for (const doc of docsToInsert) dashboard.upcomingCharges.push(doc);
-      // mark lastGenerated as last created occurrence
+      // Bulk insert
+      await UpcomingCharge.insertMany(docsToInsert);
+
+      // mark lastGenerated
       const lastIso = docsToInsert[docsToInsert.length - 1].date
         .toISOString()
         .slice(0, 10);
       (rule as any).lastGenerated = new Date(lastIso + "T00:00:00Z");
       await rule.save();
-      await dashboard.save();
     } else {
-      // nothing to insert, but still persist the rule
       await rule.save();
     }
 
@@ -666,22 +563,18 @@ export const updateCharge = async (req: AuthRequest, res: Response) => {
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
   const { id } = req.params; //get the id of the upcoming charge from the params
-  const updateData = req.body; // get the data from the body ( the form in my frontend edit)
+  const updateData = req.body; // get the data from the body
   console.log("Updating...", id);
   try {
-    const dashboard = await Dashboard.findOne({ userId });
+    // Prevent duplicate company + date check via DB
+    const duplicate = await UpcomingCharge.findOne({
+      userId,
+      _id: { $ne: id },
+      company: updateData.company,
+      date: new Date(updateData.date),
+      category: updateData.category,
+    });
 
-    if (!dashboard)
-      return res.status(404).json({ message: "Dashboard not found" });
-
-    // Prevent duplicate company + date
-    const duplicate = dashboard.upcomingCharges.some(
-      (c) =>
-        c._id?.toString() !== id &&
-        c.company === updateData.company &&
-        new Date(c.date).getTime() === new Date(updateData.date).getTime() &&
-        c.category === updateData.category
-    );
     if (duplicate) {
       return res.status(400).json({
         message:
@@ -689,25 +582,19 @@ export const updateCharge = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const chargeIndex = dashboard.upcomingCharges.findIndex(
-      (c) => c._id?.toString() === id
-    );
-    if (chargeIndex === -1)
-      return res.status(404).json({ message: "Upcoming charge not found" });
-
     // Update the charge
-    // normalize on update
-    dashboard.upcomingCharges[chargeIndex] = {
-      _id: id,
-      ...updateData,
-      date: new Date(updateData.date),
-    };
+    const updatedCharge = await UpcomingCharge.findOneAndUpdate(
+      { _id: id, userId },
+      { ...updateData, date: new Date(updateData.date) },
+      { new: true }
+    );
 
-    await dashboard.save();
+    if (!updatedCharge)
+      return res.status(404).json({ message: "Upcoming charge not found" });
 
     res.status(200).json({
       message: "Updated successfully",
-      updatedCharge: dashboard.upcomingCharges[chargeIndex], // send the updated charge back
+      updatedCharge: updatedCharge, // send the updated charge back
     });
   } catch (error) {
     console.error(error);
@@ -722,17 +609,14 @@ export const deleteCharge = async (req: AuthRequest, res: Response) => {
 
   const { id } = req.params;
   try {
-    const dashboard = await Dashboard.findOne({ userId });
-    if (!dashboard) return res.status(404).json({ message: "Not found" });
+    const result = await UpcomingCharge.findOneAndDelete({ _id: id, userId });
+    if (!result) return res.status(404).json({ message: "Not found" });
 
-    dashboard.upcomingCharges = dashboard.upcomingCharges.filter(
-      (charge) => charge._id?.toString() !== id
-    );
+    const remainingCharges = await UpcomingCharge.find({ userId });
 
-    await dashboard.save();
     res.status(200).json({
       message: "Deleted successfully",
-      upcomingCharges: dashboard.upcomingCharges,
+      upcomingCharges: remainingCharges,
     });
   } catch (error) {
     console.log(error);
@@ -748,36 +632,33 @@ export const deleteTransaction = async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
 
   try {
+    // 1. Find transaction first to reverse balance effect
+    const tx = await Transaction.findOne({ _id: id, userId });
+    if (!tx) return res.status(404).json({ message: "Transaction not found" });
+
+    // 2. Update dashboard balance
     const dashboard = await Dashboard.findOne({ userId });
-    if (!dashboard) return res.status(404).json({ message: "Not found" });
+    if (dashboard) {
+      const effect = tx.transactionType === "income" ? tx.amount : -tx.amount;
+      const account = dashboard.accounts.find(
+        (a: IAccount) => a.type === tx.account
+      );
 
-    const txIndex = dashboard.transactions.findIndex(
-      (t) => t._id?.toString() === id
-    );
-    if (txIndex === -1)
-      return res.status(404).json({ message: "Transaction not found" });
-
-    const tx = dashboard.transactions[txIndex];
-
-    if (!tx) {
-      return res
-        .status(404)
-        .json({ message: "Could not find transaction with that index" });
-    }
-    const effect = tx.transactionType === "income" ? tx.amount : -tx.amount;
-
-    const account = dashboard.accounts.find((a) => a.type === tx.account);
-
-    if (account) {
-      account.balance -= effect;
+      if (account) {
+        account.balance -= effect;
+        await dashboard.save();
+      }
     }
 
-    dashboard.transactions.splice(txIndex, 1);
-    await dashboard.save();
+    // 3. Delete from collection
+    await Transaction.findByIdAndDelete(id);
+
+    // 4. Return remaining (optional)
+    const remaining = await Transaction.find({ userId });
 
     res.status(200).json({
       message: "Deleted successfully",
-      transactions: dashboard.transactions,
+      transactions: remaining,
     });
   } catch (error) {
     console.error(error);
@@ -792,6 +673,7 @@ export const addTransaction = async (req: AuthRequest, res: Response) => {
 
   const { date, company, amount, transactionType, category, account } =
     req.body;
+
   // Basic validation. Even though i do validate on the frontend, validation on the backend is critical. Guarantees data integrity.
   if (!date || !company || !amount || !transactionType || !account) {
     return res.status(400).json({ message: "Missing required fields" });
@@ -812,51 +694,50 @@ export const addTransaction = async (req: AuthRequest, res: Response) => {
       .json({ message: "Category is required for expenses" });
   }
 
-  // 3️Normalize transaction
-  // FIX: add _id so the pushed object satisfies ITransaction (TypeScript)
-  const newTransaction = {
-    _id: new mongoose.Types.ObjectId(),
-    date: new Date(date),
-    company: company.trim(),
-    amount: Number(amount),
-    transactionType,
-    category: transactionType === "expense" ? category : undefined,
-    account: account,
-    createdAt: new Date(),
-  };
   try {
-    // get the dashboard ( the object containing all the data, including the transactions array)
-    const dashboard = await Dashboard.findOne({ userId });
-    if (!dashboard) return res.status(404).json({ message: "Not found" });
-    // insert the new transaction into the transactions array
-    dashboard.transactions.push(newTransaction);
-    const accountIndex = dashboard.accounts.findIndex(
-      (a) => a.type === account
-    );
+    // 1. Create Transaction Document
+    const newTransaction = await Transaction.create({
+      userId,
+      date: new Date(date),
+      company: company.trim(),
+      amount: Number(amount),
+      transactionType,
+      category: transactionType === "expense" ? category : undefined,
+      account: account,
+    });
 
-    // Update account balance or create the account if it doesn't exist
-    if (accountIndex !== -1 && dashboard.accounts[accountIndex]) {
-      if (transactionType === "expense") {
-        dashboard.accounts[accountIndex].balance -= Number(amount);
+    // 2. Update Dashboard Accounts Balance
+    const dashboard = await Dashboard.findOne({ userId });
+    if (dashboard) {
+      const accountIndex = dashboard.accounts.findIndex(
+        // a is of type IAccount?
+        (a: IAccount) => a.type === account
+      );
+
+      // Update account balance or create the account if it doesn't exist
+      if (accountIndex !== -1 && dashboard.accounts[accountIndex]) {
+        if (transactionType === "expense") {
+          dashboard.accounts[accountIndex].balance -= Number(amount);
+        } else {
+          dashboard.accounts[accountIndex].balance += Number(amount);
+        }
       } else {
-        dashboard.accounts[accountIndex].balance += Number(amount);
+        // Create the account if it doesn’t exist
+        dashboard.accounts.push({
+          userId: new mongoose.Types.ObjectId(userId),
+          // userId is not needed inside embedded if not defined in schema, but dashboard has userId
+          type: account as AccountType,
+          balance:
+            transactionType === "expense" ? -Number(amount) : Number(amount),
+          createdAt: new Date(),
+        });
       }
-    } else {
-      // Create the account if it doesn’t exist
-      dashboard.accounts.push({
-        userId: new mongoose.Types.ObjectId(userId).toString(), // ensure ObjectId
-        type: account as AccountType,
-        balance:
-          transactionType === "expense" ? -Number(amount) : Number(amount),
-        createdAt: new Date(),
-      });
+      await dashboard.save(); // save changes
     }
-    await dashboard.save(); // save changes
-    const addedTransaction =
-      dashboard.transactions[dashboard.transactions.length - 1]; // the new transaction will be the last one, so i can send it back
+
     res.status(201).json({
       message: "Transaction added successfully",
-      transaction: addedTransaction,
+      transaction: newTransaction,
     });
   } catch (error) {
     console.error(error);
@@ -874,132 +755,66 @@ export const updateTransaction = async (req: AuthRequest, res: Response) => {
   const updateData = req.body;
 
   try {
+    // 1. Find OLD transaction to revert balance
+    const oldTx = await Transaction.findOne({ _id: id, userId });
+    if (!oldTx)
+      return res.status(404).json({ message: "Transaction not found" });
+
+    // 2. Fetch Dashboard
     const dashboard = await Dashboard.findOne({ userId });
     if (!dashboard)
       return res.status(404).json({ message: "Dashboard not found" });
 
-    const txIndex = dashboard.transactions.findIndex(
-      (t) => t._id?.toString() === id
-    );
-    if (txIndex === -1)
-      return res.status(404).json({ message: "Transaction not found" });
-
-    const oldTx = dashboard.transactions[txIndex];
-    if (!oldTx) {
-      return res
-        .status(500)
-        .json({ message: "Failed to find old trannsaction" });
-    }
-    // Undo old transaction effect
+    // 3. Undo old transaction effect on balance
     const oldEffect =
       oldTx.transactionType === "income" ? oldTx.amount : -oldTx.amount;
 
-    const oldAccount = dashboard.accounts.find((a) => a.type === oldTx.account);
-
+    const oldAccount = dashboard.accounts.find(
+      (a: IAccount) => a.type === oldTx.account
+    );
     if (oldAccount) {
       oldAccount.balance -= oldEffect;
     }
 
-    // Apply new transaction effect
+    // 4. Update Transaction Document
+    // Update transaction safely
+    const updatedTx = await Transaction.findByIdAndUpdate(
+      id,
+      { ...updateData, date: new Date(updateData.date) },
+      { new: true }
+    );
+
+    // 5. Apply new transaction effect on balance
     const newAmount = Number(updateData.amount);
     const newEffect =
       updateData.transactionType === "income" ? newAmount : -newAmount;
 
     let newAccount = dashboard.accounts.find(
-      (a) => a.type === updateData.account
+      (a: IAccount) => a.type === updateData.account
     );
 
     if (!newAccount) {
-      newAccount = {
-        userId,
-        type: updateData.account,
+      const accountToPush = {
+        userId: new mongoose.Types.ObjectId(userId), // Explicitly add userId if your Schema requires it inside embedded docs
+        type: updateData.account as AccountType, // Cast to your specific string union
         balance: 0,
         createdAt: new Date(),
       };
-      dashboard.accounts.push(newAccount as any);
+      // push new account
+      dashboard.accounts.push(accountToPush);
+      // refference new account
+      newAccount = dashboard.accounts[dashboard.accounts.length - 1];
     }
 
     newAccount.balance += newEffect;
-
-    // Update transaction safely
-    Object.assign(oldTx, {
-      ...updateData,
-      amount: newAmount,
-      date: new Date(updateData.date),
-    });
-
     await dashboard.save();
 
     res.status(200).json({
       message: "Transaction updated successfully",
-      updatedTransaction: oldTx,
+      updatedTransaction: updatedTx,
     });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
-
-// get monthly income summary
-// ! overkill here, if i had millions of records it might be worth it
-// but since i'm fetching the dashboard on the frontend, i can do the calculations there.
-// if i do aggregations, that means a second query, extra DB work, extra latency
-// export const getIncomeSumary = async (req: AuthAuthRequest, res: Response) => {
-//   const userId = getUserId(req);
-//   if (!userId) {
-//     return res.status(401).json({ message: "Unauthorized" });
-//   }
-//   const now = new Date(); // get present date
-//   const startOfThisMonth = new Date(
-//     now.getFullYear(),
-//     now.getMonth(), // get the current year and month
-//     1 // day, can take values from 1 to 31
-//   );
-
-//   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1); // get last month
-
-//   const result = await Dashboard.aggregate([
-//     { $match: { userId: new mongoose.Types.ObjectId(userId) } },
-//     { $unwind: "$income" },
-//     {
-//       $match: {
-//         "income.date": {
-//           $gte: startOfLastMonth,
-//           $lt: new Date(now.getFullYear(), now.getMonth() + 1, 1),
-//         },
-//       },
-//     },
-//     {
-//       $group: {
-//         _id: {
-//           month: { $month: "$income.date" },
-//           year: { $year: "$income.date" },
-//         },
-//         total: { $sum: "$income.amount" },
-//       },
-//     },
-//   ]);
-
-//   let thisMonth = 0;
-//   let lastMonth = 0;
-//   result.forEach((r) => {
-//     if (
-//       r._id.month === startOfThisMonth.getMonth() + 1 &&
-//       r._id.year === startOfThisMonth.getFullYear()
-//     ) {
-//       thisMonth = r.total;
-//     }
-
-//     if (
-//       r._id.month === startOfLastMonth.getMonth() + 1 &&
-//       r._id.year === startOfLastMonth.getFullYear()
-//     ) {
-//       lastMonth = r.total;
-//     }
-//   });
-
-//   console.log("This month:", thisMonth);
-//   console.log("Last month: ", lastMonth);
-//   console.log("Difference: ", thisMonth - lastMonth);
-//   res.json({ thisMonth, lastMonth, difference: thisMonth - lastMonth }); // send back the amounts for this month, last month, and the difference
-// };

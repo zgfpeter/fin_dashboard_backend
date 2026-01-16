@@ -14,7 +14,7 @@ const router = Router();
 // limit each IP to 5 requests per minute
 const loginLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 5, // max 5 requests per IP
+  max: 10, // max 5 requests per IP
   message: {
     message: "Too many login attempts. Please try again later.",
   },
