@@ -13,7 +13,7 @@ export interface IDashboard extends Document {
     totalBalance: number;
     monthlyChange: number;
   };
-  // Accounts are usually few (checking, savings), so it is OK to keep them embedded if you want
+
   accounts: IAccount[];
 }
 

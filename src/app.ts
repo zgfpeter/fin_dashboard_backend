@@ -19,7 +19,7 @@ const app = express();
 
 /*
   IMPORTANT:
-  App is deployed behind a proxy (Vercel / Railway / etc).
+  App is deployed behind a proxy (Vercel) 
   Without this, rate limiting per IP will NOT work correctly.
 */
 app.set("trust proxy", 1);

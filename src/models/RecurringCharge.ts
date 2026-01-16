@@ -1,8 +1,7 @@
-// recurringCharge.ts
 import mongoose, { Schema, Document, HydratedDocument } from "mongoose";
 import { ExpenseCategory } from "../types/finance";
 
-// ---------- TYPES ----------
+// Types
 export interface IRecurringCharge extends Document {
   userId: mongoose.Types.ObjectId;
 
@@ -11,7 +10,7 @@ export interface IRecurringCharge extends Document {
   amount: number;
   category: ExpenseCategory;
 
-  repeating: "Weekly" | "BiWeekly" | "Monthly" | "Yearly";
+  repeating: "Weekly" | "Monthly" | "Yearly";
   interval: number;
 
   endDate?: Date;
@@ -21,7 +20,7 @@ export interface IRecurringCharge extends Document {
   createdAt: Date;
 }
 
-// ---------- SCHEMA ----------
+// Schema
 const RecurringChargeSchema = new Schema<IRecurringCharge>(
   {
     userId: {
@@ -40,7 +39,7 @@ const RecurringChargeSchema = new Schema<IRecurringCharge>(
     },
     repeating: {
       type: String,
-      enum: ["Weekly", "BiWeekly", "Monthly", "Yearly"],
+      enum: ["Weekly", "Monthly", "Yearly"],
       required: true,
     },
     interval: { type: Number, default: 1, min: 1 },

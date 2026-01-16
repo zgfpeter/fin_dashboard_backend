@@ -7,7 +7,7 @@ export interface IUpcomingCharge extends Document {
   amount: number;
   category: string;
   recurring: boolean;
-  repeating?: "Weekly" | "BiWeekly" | "Monthly" | "Yearly";
+  repeating?: "Weekly" | "Monthly" | "Yearly";
 }
 
 const UpcomingChargeSchema = new Schema<IUpcomingCharge>({
@@ -24,7 +24,7 @@ const UpcomingChargeSchema = new Schema<IUpcomingCharge>({
   recurring: { type: Boolean, default: false },
   repeating: {
     type: String,
-    enum: ["Weekly", "BiWeekly", "Monthly", "Yearly"],
+    enum: ["Weekly", "Monthly", "Yearly"],
   },
 });
 

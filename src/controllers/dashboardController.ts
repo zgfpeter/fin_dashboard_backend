@@ -695,7 +695,7 @@ export const addTransaction = async (req: AuthRequest, res: Response) => {
   }
 
   try {
-    // 1. Create Transaction Document
+    // Create Transaction Document
     const newTransaction = await Transaction.create({
       userId,
       date: new Date(date),
@@ -706,7 +706,7 @@ export const addTransaction = async (req: AuthRequest, res: Response) => {
       account: account,
     });
 
-    // 2. Update Dashboard Accounts Balance
+    // Update Dashboard Accounts Balance
     const dashboard = await Dashboard.findOne({ userId });
     if (dashboard) {
       const accountIndex = dashboard.accounts.findIndex(
@@ -755,17 +755,17 @@ export const updateTransaction = async (req: AuthRequest, res: Response) => {
   const updateData = req.body;
 
   try {
-    // 1. Find OLD transaction to revert balance
+    // Find old transaction to revert balance
     const oldTx = await Transaction.findOne({ _id: id, userId });
     if (!oldTx)
       return res.status(404).json({ message: "Transaction not found" });
 
-    // 2. Fetch Dashboard
+    // Fetch Dashboard
     const dashboard = await Dashboard.findOne({ userId });
     if (!dashboard)
       return res.status(404).json({ message: "Dashboard not found" });
 
-    // 3. Undo old transaction effect on balance
+    //  Undo old transaction effect on balance
     const oldEffect =
       oldTx.transactionType === "income" ? oldTx.amount : -oldTx.amount;
 
@@ -776,15 +776,15 @@ export const updateTransaction = async (req: AuthRequest, res: Response) => {
       oldAccount.balance -= oldEffect;
     }
 
-    // 4. Update Transaction Document
-    // Update transaction safely
+    //  Update Transaction Document
+
     const updatedTx = await Transaction.findByIdAndUpdate(
       id,
       { ...updateData, date: new Date(updateData.date) },
       { new: true }
     );
 
-    // 5. Apply new transaction effect on balance
+    // Apply new transaction effect on balance
     const newAmount = Number(updateData.amount);
     const newEffect =
       updateData.transactionType === "income" ? newAmount : -newAmount;

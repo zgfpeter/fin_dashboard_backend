@@ -36,6 +36,6 @@ const TransactionSchema = new Schema<ITransaction>({
   },
 });
 
-// This creates a "transactions" collection in MongoDB
+// If i don't specify a collections, this by default creates a "transactions" (plural) collection in MongoDB
 export default mongoose.models.Transaction ||
   mongoose.model<ITransaction>("Transaction", TransactionSchema);
